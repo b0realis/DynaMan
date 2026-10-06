@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- battle bomb, design 10: black sphere, player-tinted cap collar,
+       steel bolt on top, short lit fuse -->
+  <ellipse cx="32" cy="61" rx="18" ry="3.4" fill="#000" opacity="0.18"/>
+  <circle cx="32" cy="38" r="23" fill="#23232e" stroke="#101018" stroke-width="2.5"/>
+  <ellipse cx="23.5" cy="29" rx="8" ry="5.6" fill="#4a4a5c"/>
+  <ellipse cx="21" cy="27" rx="3.2" ry="2.2" fill="#6a6a80"/>
+  <path d="M20 20.5 C24.5 15.5 39.5 15.5 44 20.5 L42 11.5 C38 7.5 26 7.5 22 11.5 Z" fill="%COL%" stroke="#101018" stroke-width="2"/>
+  <rect x="28.5" y="3.5" width="7" height="7" rx="1.5" fill="#c8cdd6" stroke="#101018" stroke-width="1.6"/>
+  <rect x="30.4" y="3.5" width="1.4" height="7" fill="#8e95a2"/>
+  <path d="M35.5 6.5 C 38.5 3 41.5 5 44 2.5" stroke="#8a5a32" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+  <polygon points="46,0.5 47.6,3.2 50.8,2.2 48.9,5 51.4,7.4 48.2,7.4 46.6,10.4 45.1,7.4 41.9,7.8 44.2,5.1 42.4,2.4 45.2,3.3" fill="#ffd23e"/>
+  <circle cx="46.3" cy="5" r="2.2" fill="#fff6c8"/>
+  <circle cx="46.3" cy="5" r="4.2" fill="%COL%" opacity="0.35"/>
+</svg>

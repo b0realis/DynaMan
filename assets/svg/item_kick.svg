@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="#142a6e"/>
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="none" stroke="#f2c94c" stroke-width="4"/>
+  <!-- bomb punted up-right, spark + motion lines -->
+  <circle cx="44" cy="22" r="11" fill="#23232e" stroke="#101018" stroke-width="1.5"/>
+  <ellipse cx="40" cy="18" rx="3.5" ry="2.6" fill="#4a4a5c"/>
+  <path d="M50 13 C 52 10 55 11 56 8" stroke="#8a5a32" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <circle cx="56.5" cy="7.5" r="2.6" fill="#ffd23e"/>
+  <path d="M28 14 L33 17 M24 22 L30 24 M23 30 L29 30" stroke="#7de1ff" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- big red boot, toe up into the bomb -->
+  <path d="M12 34 C11 28 15 25 20 26 L26 28 C27 32 26 36 24 39 L34 44 C39 46 38 52 33 52 L14 52 C11 52 10 49 10 46 Z" fill="#d84040" stroke="#7a1f1f" stroke-width="2.5"/>
+  <path d="M17 29 L21 31 M16 33 L20 35" stroke="#7a1f1f" stroke-width="2" stroke-linecap="round"/>
+  <path d="M10 49 H36 C38 49 38.5 50 38 51 C37 52.5 35 53 33 53 H14 C11.5 53 10.5 51.5 10 49 Z" fill="#5c3a1e" stroke="#3a2412" stroke-width="1.5"/>
+</svg>

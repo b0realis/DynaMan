@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Dynablaster soft block: salmon bricks with pale mortar -->
+  <rect width="64" height="64" fill="#e8c9b0"/>
+  <g fill="#d9825f">
+    <rect x="2" y="2" width="28" height="12"/><rect x="34" y="2" width="28" height="12"/>
+    <rect x="2" y="18" width="12" height="12"/><rect x="18" y="18" width="28" height="12"/><rect x="50" y="18" width="12" height="12"/>
+    <rect x="2" y="34" width="28" height="12"/><rect x="34" y="34" width="28" height="12"/>
+    <rect x="2" y="50" width="12" height="12"/><rect x="18" y="50" width="28" height="12"/><rect x="50" y="50" width="12" height="12"/>
+  </g>
+  <g fill="#c06246">
+    <rect x="2" y="11" width="28" height="3"/><rect x="34" y="11" width="28" height="3"/>
+    <rect x="2" y="27" width="12" height="3"/><rect x="18" y="27" width="28" height="3"/><rect x="50" y="27" width="12" height="3"/>
+    <rect x="2" y="43" width="28" height="3"/><rect x="34" y="43" width="28" height="3"/>
+    <rect x="2" y="59" width="12" height="3"/><rect x="18" y="59" width="28" height="3"/><rect x="50" y="59" width="12" height="3"/>
+  </g>
+  <path d="M0 0 H64 V3 H3 V64 H0 Z" fill="#f4e0cd"/>
+  <path d="M64 0 V64 H0 L3 61 H61 V3 Z" fill="#a04c34" opacity="0.55"/>
+</svg>

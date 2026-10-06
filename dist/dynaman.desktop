@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=DynaMan
+Comment=Last bomber standing — a Dynablaster battle clone
+Exec=__EXEC__
+Icon=dynaman
+Terminal=false
+Categories=Game;ArcadeGame;
+StartupWMClass=DynaMan

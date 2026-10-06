@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="#0d2e12"/>
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="none" stroke="#f2c94c" stroke-width="4"/>
+  <!-- green infectious skull with smoke wisps -->
+  <path d="M14 14 C12 10 16 8 18 11 M50 14 C52 10 48 8 46 11" stroke="#4fd44f" stroke-width="2.5" fill="none" opacity="0.8"/>
+  <path d="M32 12 C 20 12 15 21 15 29 C 15 35 18 39 22 41 V47 H26 V42 H30 V47 H34 V42 H38 V47 H42 V41 C 46 39 49 35 49 29 C 49 21 44 12 32 12 Z" fill="#7ade6a"/>
+  <ellipse cx="25" cy="29" rx="4.5" ry="5.5" fill="#0d2e12"/>
+  <ellipse cx="39" cy="29" rx="4.5" ry="5.5" fill="#0d2e12"/>
+  <path d="M32 34 L29 39 H35 Z" fill="#0d2e12"/>
+  <path d="M20 52 C24 49 28 53 32 51 C36 49 40 53 44 51" stroke="#4fd44f" stroke-width="2.5" fill="none" opacity="0.8"/>
+</svg>

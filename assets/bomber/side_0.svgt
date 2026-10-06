@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="76" viewBox="0 0 64 76">
+  <ellipse cx="32" cy="72" rx="15" ry="4" fill="#000" opacity="0.15"/>
+  <ellipse cx="38" cy="68" rx="7.5" ry="4.5" fill="%DARK%" stroke="#1a1626" stroke-width="2"/>
+  <ellipse cx="26" cy="69" rx="6.5" ry="4" fill="%DARK%" stroke="#1a1626" stroke-width="2"/>
+  <path d="M25 46 H39 C43 46 44 49 44 52 V58 C44 62 41 63 38 63 H26 C22 63 20 62 20 58 V52 C20 49 21 46 25 46 Z" fill="%COL%" stroke="#1a1626" stroke-width="2.5"/>
+  <path d="M42.5 47.5 V56 " stroke="#f4f4f6" stroke-width="2"/><rect x="21" y="55.4" width="22" height="2.6" fill="#2a2433" stroke="#1a1626" stroke-width="1"/><rect x="38.4" y="54.4" width="4.8" height="4.6" rx="1" fill="#f2c94c" stroke="#8a6a10" stroke-width="1.1"/>
+  <circle cx="44" cy="52" r="5.5" fill="#f4f4f4" stroke="#1a1626" stroke-width="2"/>
+  <line x1="32" y1="8" x2="32" y2="3" stroke="#1a1626" stroke-width="2.5"/>
+  <circle cx="32" cy="3.5" r="3.4" fill="%COL%" stroke="#1a1626" stroke-width="1.5"/>
+  <!-- helmet: colored dome, face window toward travel direction -->
+  <circle cx="32" cy="28" r="21" fill="%COL%" stroke="#1a1626" stroke-width="2.5"/>
+  <ellipse cx="23" cy="15" rx="7" ry="4" fill="#ffffff" opacity="0.3"/>
+  <rect x="34" y="26.5" width="17.5" height="14.5" rx="7" fill="#f6d3a7" stroke="#1a1626" stroke-width="2"/>
+  <rect x="42" y="29.5" width="5" height="8" rx="2.5" fill="#1a1626"/>
+</svg>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- battle bomb, style "dynamite": three sticks in a TIGHT triangle
+       bundle; the player-tinted tape wraps the bundle and follows the
+       cylinders' contour — bowing over each front stick, creasing in
+       the crevice, rounding off around the outer curves -->
+  <ellipse cx="32" cy="61" rx="18" ry="3.4" fill="#000" opacity="0.18"/>
+  <!-- back stick: peeks out top-center, a shade darker in the shadow -->
+  <rect x="26" y="8" width="12" height="38" rx="4.5" fill="#a82820" stroke="#701410" stroke-width="2"/>
+  <ellipse cx="32" cy="9.8" rx="5.2" ry="2.6" fill="#c84034" stroke="#701410" stroke-width="1.6"/>
+  <circle cx="32" cy="9.8" r="1.4" fill="#4a0e0a"/>
+  <!-- front pair, shoulder to shoulder -->
+  <g stroke="#701410" stroke-width="2">
+    <rect x="16" y="18" width="14" height="40" rx="5" fill="#c8352c"/>
+    <rect x="34" y="18" width="14" height="40" rx="5" fill="#c8352c"/>
+  </g>
+  <path d="M18 20 Q18 56 20 56 L20 20 Z" fill="#e05548"/>
+  <path d="M36 20 Q36 56 38 56 L38 20 Z" fill="#e05548"/>
+  <ellipse cx="23" cy="19.8" rx="6.2" ry="2.9" fill="#e05548" stroke="#701410" stroke-width="1.6"/>
+  <ellipse cx="41" cy="19.8" rx="6.2" ry="2.9" fill="#e05548" stroke="#701410" stroke-width="1.6"/>
+  <circle cx="23" cy="19.8" r="1.5" fill="#4a0e0a"/>
+  <circle cx="41" cy="19.8" r="1.5" fill="#4a0e0a"/>
+  <!-- the tape: bows over each stick, dips at the crevice, wraps the
+       outer curves -->
+  <path d="M16 33.2 Q23 35.6 29.5 33.4 Q32 32.6 34.5 33.4 Q41 35.6 48 33.2 Q50.5 33.9 50.5 38.3 Q50.5 42.4 48 43.2 Q41 45.6 34.5 43.4 Q32 42.6 29.5 43.4 Q23 45.6 16 43.2 Q13.5 42.4 13.5 38.3 Q13.5 33.9 16 33.2 Z" fill="%COL%" stroke="#101018" stroke-width="1.8"/>
+  <path d="M16.5 34.6 Q23 36.8 29.5 34.8 Q32 34 34.5 34.8 Q41 36.8 47.5 34.6" fill="none" stroke="#ffffff" stroke-width="1.6" opacity="0.4"/>
+  <path d="M32 34 L32 43.4" stroke="#101018" stroke-width="1.2" opacity="0.45" fill="none"/>
+  <path d="M48 33.6 Q50.5 34.3 50.5 38.5 Q50.5 42.7 48 43.4 Z" fill="%DARK%" opacity="0.5"/>
+  <path d="M16 33.6 Q13.5 34.3 13.5 38.5 Q13.5 42.7 16 43.4 Z" fill="%DARK%" opacity="0.5"/>
+  <!-- fuse from the back stick, shared by the whole bundle -->
+  <path d="M32 7.5 C 33.5 4 37.5 4.5 39.5 1.5" stroke="#8a5a32" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <polygon points="41.5,-1.5 43.1,1.2 46.3,0.2 44.4,3 46.9,5.4 43.7,5.4 42.1,8.4 40.6,5.4 37.4,5.8 39.7,3.1 37.9,0.4 40.7,1.3" fill="#ffd23e"/>
+  <circle cx="41.8" cy="2" r="2.2" fill="#fff6c8"/>
+  <circle cx="41.8" cy="2" r="4.2" fill="%COL%" opacity="0.35"/>
+</svg>

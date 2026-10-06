@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- battle bomb, style "acme": one comically fat dynamite stick,
+       proud ACME label, extravagantly long fuse. Beep beep. -->
+  <ellipse cx="32" cy="61" rx="16" ry="3.2" fill="#000" opacity="0.18"/>
+  <rect x="21" y="17" width="22" height="42" rx="5" fill="#d8342a" stroke="#701410" stroke-width="2.2"/>
+  <path d="M23 19 Q23 58 25 57 L25 19 Z" fill="#ec5a4a"/>
+  <ellipse cx="32" cy="18" rx="9.5" ry="3.6" fill="#e85548" stroke="#701410" stroke-width="1.8"/>
+  <circle cx="32" cy="18" r="2" fill="#4a0e0a"/>
+  <path d="M20.5 30.2 Q32 32.8 43.5 30.2 Q44.8 30.6 44.8 36.4 Q44.8 42.2 43.5 42.6 Q32 45.2 20.5 42.6 Q19.2 42.2 19.2 36.4 Q19.2 30.6 20.5 30.2 Z" fill="%COL%" stroke="#101018" stroke-width="1.8"/>
+  <g stroke="#18181c" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21.5 40.2 L23.2 33.2 L25 40.2 M22.2 37.8 L24.3 37.8"/>
+    <path d="M30.5 35.3 Q27 34.3 27 37.8 Q27 41.3 30.5 40.5"/>
+    <path d="M32.5 41.3 L32.5 34.3 L35 38.3 L37.5 34.3 L37.5 41.3"/>
+    <path d="M42.5 33.7 L39.5 33.7 L39.5 40.2 L42.5 40.2 M39.5 36.9 L41.8 36.9"/>
+  </g>
+  <g stroke="#f6f2e8" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21.5 40.2 L23.2 33.2 L25 40.2 M22.2 37.8 L24.3 37.8"/>
+    <path d="M30.5 35.3 Q27 34.3 27 37.8 Q27 41.3 30.5 40.5"/>
+    <path d="M32.5 41.3 L32.5 34.3 L35 38.3 L37.5 34.3 L37.5 41.3"/>
+    <path d="M42.5 33.7 L39.5 33.7 L39.5 40.2 L42.5 40.2 M39.5 36.9 L41.8 36.9"/>
+  </g>
+  <path d="M32 14.5 C 32 9 36 9.5 38 6.5 C 40.5 3 36 2 37.5 -0.5" stroke="#8a5a32" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <polygon points="40,-2.5 41.6,0.2 44.8,-0.8 42.9,2 45.4,4.4 42.2,4.4 40.6,7.4 39.1,4.4 35.9,4.8 38.2,2.1 36.4,-0.6 39.2,0.3" fill="#ffd23e"/>
+  <circle cx="40.3" cy="2" r="2.2" fill="#fff6c8"/>
+  <circle cx="40.3" cy="2" r="4.2" fill="%COL%" opacity="0.35"/>
+</svg>

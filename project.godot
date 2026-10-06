@@ -1,0 +1,32 @@
+; Engine configuration file.
+; DynaMan by Prescription Games — a lean Dynablaster battle-mode clone
+; for 1-4 local players. Design: docs/DESIGN.md. Input actions are
+; registered in code (scripts/autoload/settings.gd).
+config_version=5
+
+[application]
+
+config/name="DynaMan"
+config/description="Dynablaster-style local battle: 1-4 bombers, one keyboard, last one standing. A Prescription Games production."
+run/main_scene="res://scenes/startup.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+
+Settings="*res://scripts/autoload/settings.gd"
+Story="*res://scripts/autoload/story.gd"
+Sfx="*res://scripts/autoload/sfx.gd"
+Music="*res://scripts/autoload/music.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

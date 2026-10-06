@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="76" viewBox="0 0 64 76">
+  <ellipse cx="32" cy="72" rx="16" ry="4" fill="#000" opacity="0.15"/>
+  <ellipse cx="22" cy="70" rx="7" ry="4.5" fill="%DARK%" stroke="#1a1626" stroke-width="2"/>
+  <ellipse cx="42" cy="66" rx="7" ry="4.5" fill="%DARK%" stroke="#1a1626" stroke-width="2"/>
+  <path d="M22 46 H42 C45 46 46 49 46 52 V58 C46 62 43 63 40 63 H24 C21 63 18 62 18 58 V52 C18 49 19 46 22 46 Z" fill="%COL%" stroke="#1a1626" stroke-width="2.5"/>
+  <!-- zipper: strip, teeth, pull -->
+  <rect x="30.3" y="46.8" width="3.4" height="9.6" rx="1.4" fill="#f4f4f6" stroke="#1a1626" stroke-width="1.2"/>
+  <path d="M30.3 50 H33.7 M30.3 52.6 H33.7 M30.3 55.2 H33.7" stroke="#8d8d9e" stroke-width="1"/><rect x="19" y="55.4" width="26" height="2.6" fill="#2a2433" stroke="#1a1626" stroke-width="1"/><rect x="29.2" y="54.4" width="5.6" height="4.6" rx="1.1" fill="#f2c94c" stroke="#8a6a10" stroke-width="1.2"/>
+  <circle cx="32" cy="48.6" r="1.7" fill="#1a1626"/>
+  <circle cx="14" cy="54.5" r="5.5" fill="#f4f4f4" stroke="#1a1626" stroke-width="2"/>
+  <circle cx="50" cy="49.5" r="5.5" fill="#f4f4f4" stroke="#1a1626" stroke-width="2"/>
+  <line x1="32" y1="8" x2="32" y2="3" stroke="#1a1626" stroke-width="2.5"/>
+  <circle cx="32" cy="3.5" r="3.4" fill="%COL%" stroke="#1a1626" stroke-width="1.5"/>
+  <!-- helmet: colored dome, white face window -->
+  <circle cx="32" cy="28" r="21" fill="%COL%" stroke="#1a1626" stroke-width="2.5"/>
+  <ellipse cx="23" cy="15" rx="7" ry="4" fill="#ffffff" opacity="0.3"/>
+  <rect x="17.5" y="26.5" width="29" height="14.5" rx="7" fill="#f6d3a7" stroke="#1a1626" stroke-width="2"/>
+  <rect x="24.5" y="29.5" width="5" height="8" rx="2.5" fill="#1a1626"/>
+  <rect x="34.5" y="29.5" width="5" height="8" rx="2.5" fill="#1a1626"/>
+</svg>

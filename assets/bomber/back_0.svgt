@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="76" viewBox="0 0 64 76">
+  <ellipse cx="32" cy="72" rx="16" ry="4" fill="#000" opacity="0.15"/>
+  <ellipse cx="24" cy="68" rx="7" ry="4.5" fill="%DARK%" stroke="#1a1626" stroke-width="2"/>
+  <ellipse cx="40" cy="68" rx="7" ry="4.5" fill="%DARK%" stroke="#1a1626" stroke-width="2"/>
+  <path d="M22 46 H42 C45 46 46 49 46 52 V58 C46 62 43 63 40 63 H24 C21 63 18 62 18 58 V52 C18 49 19 46 22 46 Z" fill="%COL%" stroke="#1a1626" stroke-width="2.5"/>
+  <rect x="26" y="47.5" width="12" height="8.5" rx="3" fill="#f4f4f4" stroke="#1a1626" stroke-width="1.5"/><rect x="19" y="55.4" width="26" height="2.6" fill="#2a2433" stroke="#1a1626" stroke-width="1"/>
+  <circle cx="14" cy="54.5" r="5.5" fill="#f4f4f4" stroke="#1a1626" stroke-width="2"/>
+  <circle cx="50" cy="49.5" r="5.5" fill="#f4f4f4" stroke="#1a1626" stroke-width="2"/>
+  <line x1="32" y1="8" x2="32" y2="3" stroke="#1a1626" stroke-width="2.5"/>
+  <circle cx="32" cy="3.5" r="3.4" fill="%COL%" stroke="#1a1626" stroke-width="1.5"/>
+  <!-- helmet from behind: full dome, seam, shine -->
+  <circle cx="32" cy="28" r="21" fill="%COL%" stroke="#1a1626" stroke-width="2.5"/>
+  <path d="M13 31 Q 32 38 51 31" stroke="#1a1626" stroke-width="1.6" fill="none" opacity="0.5"/>
+  <ellipse cx="23" cy="15" rx="7" ry="4" fill="#ffffff" opacity="0.3"/>
+</svg>

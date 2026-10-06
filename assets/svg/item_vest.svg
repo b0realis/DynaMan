@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="#142a6e"/>
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="none" stroke="#f2c94c" stroke-width="4"/>
+  <!-- fireproof vest -->
+  <path d="M22 14 L28 12 C28 16 36 16 36 12 L42 14 L48 22 L42 27 V50 H22 V27 L16 22 Z" fill="#e8891f" stroke="#8a4a10" stroke-width="2.5"/>
+  <path d="M32 16 V50" stroke="#8a4a10" stroke-width="2"/>
+  <circle cx="28" cy="26" r="1.8" fill="#8a4a10"/>
+  <circle cx="28" cy="34" r="1.8" fill="#8a4a10"/>
+  <circle cx="28" cy="42" r="1.8" fill="#8a4a10"/>
+  <path d="M24 20 C22 24 22 28 24 31" stroke="#ffd23e" stroke-width="2" fill="none"/>
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- DynaMan app icon: the design-No.10 bomb, big and lit, on navy.
+       Master for the whole icon set (dist/icons, rendered by
+       tests/icon_render.gd) and the runtime window icon. -->
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.42" r="0.75">
+      <stop offset="0" stop-color="#1c2b58"/>
+      <stop offset="1" stop-color="#0d1630"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd94a" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffd94a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="26" fill="url(#bg)"/>
+  <rect x="3" y="3" width="122" height="122" rx="23" fill="none" stroke="#e8b020" stroke-width="3" opacity="0.85"/>
+  <!-- spark glow halo behind the fuse tip -->
+  <circle cx="92" cy="26" r="24" fill="url(#glow)"/>
+  <!-- fuse -->
+  <path d="M64 34 C64 22 76 18 88 26" fill="none" stroke="#c9a06a" stroke-width="6" stroke-linecap="round"/>
+  <!-- spark: 8-point star -->
+  <g fill="#ffd94a" stroke="#ff9a2a" stroke-width="1.6">
+    <path d="M92 12 L95 22 L104 18 L98 26 L106 30 L96 31 L98 40 L92 33 L85 40 L88 30 L78 29 L87 25 Z"/>
+  </g>
+  <circle cx="92" cy="27" r="4" fill="#fff6d8"/>
+  <!-- bolt-cap collar (design No. 10) -->
+  <rect x="52" y="30" width="24" height="12" rx="3" fill="#8a8a96" stroke="#23232e" stroke-width="3"/>
+  <rect x="56" y="40" width="16" height="9" fill="#6f6f7c" stroke="#23232e" stroke-width="3"/>
+  <circle cx="57" cy="36" r="2.4" fill="#3c3c48"/>
+  <circle cx="71" cy="36" r="2.4" fill="#3c3c48"/>
+  <!-- bomb body -->
+  <circle cx="64" cy="82" r="38" fill="#23232e" stroke="#0b0b12" stroke-width="4"/>
+  <ellipse cx="50" cy="68" rx="12" ry="8" transform="rotate(-32 50 68)" fill="#4a4a5c"/>
+  <circle cx="47" cy="64" r="3.5" fill="#6a6a80"/>
+</svg>

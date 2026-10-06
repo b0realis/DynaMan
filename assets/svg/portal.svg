@@ -1,0 +1,13 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Exit portal: stone arch over a dark doorway with a teal swirl. -->
+  <path d="M8 60 V28 a24 24 0 0 1 48 0 V60 Z" fill="#9aa0ac" stroke="#3c3c48" stroke-width="3"/>
+  <path d="M14 60 V29 a18 18 0 0 1 36 0 V60 Z" fill="#767c8a" stroke="#3c3c48" stroke-width="2"/>
+  <path d="M18 60 V30 a14 14 0 0 1 28 0 V60 Z" fill="#0e0e1c"/>
+  <circle cx="32" cy="40" r="10" fill="none" stroke="#39d0e8" stroke-width="2.4" opacity="0.85"/>
+  <path d="M32 40 m0 -6.5 a6.5 6.5 0 0 1 6.5 6.5" fill="none" stroke="#7fe7f6" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M32 40 m0 6.5 a6.5 6.5 0 0 1 -6.5 -6.5" fill="none" stroke="#7fe7f6" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="32" cy="40" r="2.4" fill="#d8f6ff"/>
+  <rect x="6" y="58" width="52" height="4" rx="2" fill="#3c3c48"/>
+  <circle cx="15" cy="34" r="1.6" fill="#3c3c48" opacity="0.6"/>
+  <circle cx="49" cy="34" r="1.6" fill="#3c3c48" opacity="0.6"/>
+</svg>
