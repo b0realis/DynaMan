@@ -645,6 +645,11 @@ var _save_timer: SceneTreeTimer
 func _ready() -> void:
 	_register_actions()
 	_register_ui_joypad()
+	# Handhelds (v12.4): the Steam Deck launcher sets DYNAMAN_HANDHELD, so a
+	# setting the player has never saved opens on the device's default —
+	# full screen. A choice made in OPTIONS is saved and wins from then on.
+	if not OS.get_environment("DYNAMAN_HANDHELD").is_empty():
+		_fullscreen = true
 	_load()
 	_apply_fullscreen()
 

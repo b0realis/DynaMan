@@ -9,7 +9,7 @@ extends Node
 ## HELP (controls per player).
 
 ## Project convention: bump by 0.1 with EVERY shipped change.
-const VERSION := "v12.3"
+const VERSION := "v12.4"
 
 const COL_TEXT := Color("e8e0cc")
 const COL_DIM := Color("8b8fa3")

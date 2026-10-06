@@ -1,6 +1,6 @@
 # DynaMan
 
-*a Prescription Games production* · v12.3
+*a Prescription Games production* · v12.4
 <!-- version convention: bump by 0.1 with every shipped change (keep in
      sync with VERSION in scripts/ui/startup.gd) -->
 
@@ -141,6 +141,17 @@ restart the game and the cabinet is sealed until the word is spoken
 again. And while any bottle is open the HUD wears an **Rx MEDICATED**
 badge — everyone on the couch can see you cheated. Cheats never touch
 the attract demo.
+
+## Download
+
+Ready-to-run packages are on the
+[Releases page](https://github.com/b0realis/DynaMan/releases):
+**Linux x86-64**, **Steam Deck** (native, no Proton — add `run.sh` as a
+non-Steam game; it starts full screen and the Deck's controls are
+Player 1) and **Raspberry Pi 5** (64-bit ARM, OpenGL ES 3). Unpack the
+folder, run `./run.sh`; `./shortcut.sh` puts DynaMan in your menu.
+Build them yourself with `dist/package_release.sh` (Godot 4.7 and its
+export templates).
 
 ## Running
 
