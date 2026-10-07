@@ -18,6 +18,8 @@ extends RefCounted
 ## are canvas drawing, not particles, and live in main's _draw_flames /
 ## _draw_glow.
 ##
+## Timers are created with process_always = false, so a tree PAUSE
+## freezes the effects' lifetimes with the particles (v12.6).
 ## `g` is the battle scene: this class reads g.cell_px / g._to_px /
 ## g._flame_canvas / g.FLAME_S and parents everything to the flame
 ## canvas so draw order stays consistent with the flames themselves.
@@ -67,7 +69,7 @@ func spawn_blast(origin: Vector2i, cells: Array, col: Color) -> void:
 			_arm_fire(origin, k, arms[k], hot, vivid, dark)
 
 	# Smoke rises out of the fireball a beat later — the "heavy" tail.
-	g.get_tree().create_timer(0.12).timeout.connect(func() -> void:
+	g.get_tree().create_timer(0.12, false).timeout.connect(func() -> void:
 		# The battle may be gone by now (any key ends the attract demo):
 		# check the scene itself before reaching through it.
 		if not is_instance_valid(g) or not is_instance_valid(g._flame_canvas):
@@ -114,9 +116,9 @@ func _arm_fire(origin: Vector2i, dirv: Vector2i, arm_len: int,
 	# Bound methods, not lambdas capturing the node: the connection dies
 	# with the emitter, so leaving the battle mid-blast no longer logs
 	# "Lambda capture at index 0 was freed" per live emitter.
-	g.get_tree().create_timer(g.FLAME_S * 0.75).timeout.connect(
+	g.get_tree().create_timer(g.FLAME_S * 0.75, false).timeout.connect(
 		fire.set_emitting.bind(false))
-	g.get_tree().create_timer(1.2).timeout.connect(fire.queue_free)
+	g.get_tree().create_timer(1.2, false).timeout.connect(fire.queue_free)
 	if arm_len > 0:
 		var embers := make_burst(mini(10 + 6 * arm_len, 40), 0.65,
 			cell_px * 1.4, cell_px * 3.4, cell_px * 0.04, cell_px * 0.1,
@@ -169,5 +171,5 @@ func make_burst(amount: int, lifetime: float, vel_min: float, vel_max: float,
 		ramp.add_point(float(i) / (colors.size() - 1), colors[i])
 	ramp.set_color(1, colors[colors.size() - 1])
 	part.color_ramp = ramp
-	g.get_tree().create_timer(lifetime + 0.5).timeout.connect(part.queue_free)
+	g.get_tree().create_timer(lifetime + 0.5, false).timeout.connect(part.queue_free)
 	return part

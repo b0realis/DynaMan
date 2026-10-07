@@ -162,6 +162,7 @@ const MOOD_KEYS := ["classic", "dark", "cozy", "zen", "desert",
 
 static var _user: Dictionary = {}
 static var _user_loaded := false
+static var last_write_error: Error = OK   # the last arenas.cfg write
 ## Sections of arenas.cfg that failed validation, kept VERBATIM so the
 ## next unrelated SAVE/DELETE doesn't erase them for good (v11.8).
 static var _user_unreadable: Dictionary = {}
@@ -378,7 +379,16 @@ static func _write_user_file() -> void:
 			continue   # the test rig never touches disk
 		for k: String in (_user[id] as Dictionary):
 			cf.set_value(id, k, _user[id][k])
-	cf.save(USER_PATH)
+	# Beside, then swapped in (no half-written file on a power cut), and
+	# the outcome is kept for the maker to report (v12.6: it said "saved"
+	# even when the user folder was read-only).
+	var tmp := USER_PATH + ".tmp"
+	last_write_error = cf.save(tmp)
+	if last_write_error == OK:
+		last_write_error = DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp),
+			ProjectSettings.globalize_path(USER_PATH))
+	if last_write_error != OK:
+		push_warning("TileArt: could not save %s (error %d)" % [USER_PATH, last_write_error])
 
 
 static func _sanitize_id(s: String) -> String:

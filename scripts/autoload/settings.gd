@@ -46,6 +46,192 @@ const SYSTEM_ACTIONS := {
 	"help": [KEY_H],  # held in battle: the quick-help overlay (v6.1)
 }
 
+## GAMEPADS (v12.5) — all remappable in OPTIONS → CONTROLS, persisted:
+## which pad drives each player (claimed by pressing a button on it),
+## each player's bomb button, the shared system buttons (any pad), and
+## the stick dead zone. A binding "code" is a JoyButton (0-20) or, for
+## the analog triggers, PAD_TRIGGER + JoyAxis (LT/RT bomb like a button).
+const PAD_TRIGGER := 100
+const PAD_NONE := 1000   # a device number no pad ever has: "this seat has no pad"
+const PAD_SYSTEM_DEFAULTS := {"pause": JOY_BUTTON_START,
+	"quit_to_menu": JOY_BUTTON_BACK, "restart": JOY_BUTTON_Y}
+const PAD_SYSTEM_NAMES := {"pause": "Pause", "quit_to_menu": "Quit to menu",
+	"restart": "Rematch"}
+const PAD_MOVE := [JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_LEFT,
+	JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_RIGHT]
+const STICK_DEADZONE_RANGE := Vector2(0.05, 0.6)
+const PAD_BUTTON_NAMES := {
+	JOY_BUTTON_A: "A", JOY_BUTTON_B: "B", JOY_BUTTON_X: "X", JOY_BUTTON_Y: "Y",
+	JOY_BUTTON_BACK: "BACK", JOY_BUTTON_GUIDE: "GUIDE", JOY_BUTTON_START: "START",
+	JOY_BUTTON_LEFT_STICK: "L-STICK", JOY_BUTTON_RIGHT_STICK: "R-STICK",
+	JOY_BUTTON_LEFT_SHOULDER: "LB", JOY_BUTTON_RIGHT_SHOULDER: "RB",
+	JOY_BUTTON_DPAD_UP: "D-UP", JOY_BUTTON_DPAD_DOWN: "D-DOWN",
+	JOY_BUTTON_DPAD_LEFT: "D-LEFT", JOY_BUTTON_DPAD_RIGHT: "D-RIGHT",
+	JOY_BUTTON_MISC1: "MISC", JOY_BUTTON_PADDLE1: "PADDLE 1",
+	JOY_BUTTON_PADDLE2: "PADDLE 2", JOY_BUTTON_PADDLE3: "PADDLE 3",
+	JOY_BUTTON_PADDLE4: "PADDLE 4", JOY_BUTTON_TOUCHPAD: "TOUCHPAD",
+}
+
+
+static func pad_code_name(code: int) -> String:
+	if code == PAD_TRIGGER + JOY_AXIS_TRIGGER_LEFT:
+		return "LT"
+	if code == PAD_TRIGGER + JOY_AXIS_TRIGGER_RIGHT:
+		return "RT"
+	return PAD_BUTTON_NAMES.get(code, "BUTTON %d" % code)
+
+
+static func _pad_code_ok(code: int) -> bool:
+	return (code >= 0 and code < JOY_BUTTON_SDL_MAX and not PAD_MOVE.has(code)) \
+		or code == PAD_TRIGGER + JOY_AXIS_TRIGGER_LEFT \
+		or code == PAD_TRIGGER + JOY_AXIS_TRIGGER_RIGHT
+
+
+func pad_device(p: int) -> int:
+	return int(_pad_device[clampi(p, 0, 3)])
+
+
+## The pad driving seat p right now: its claim if connected, else the
+## seat-order fallback (v12.6). Rumble and the help texts use this.
+func pad_live(p: int) -> int:
+	return int(_pad_live[clampi(p, 0, 3)])
+
+
+## Claims are device numbers, and Godot hands out the lowest free number
+## to each pad as it connects — so a claim can point at a pad that isn't
+## there (a Deck whose external pad was claimed as P1 woke up with its
+## own controls driving P2 and P1 dead). Seats in order take their claim
+## if it's connected and still free, else the lowest connected free pad.
+## With no pads connected at all, the claims stand as they are.
+func _resolve_live_pads() -> void:
+	var connected := Input.get_connected_joypads()
+	connected.sort()
+	if connected.is_empty():
+		_pad_live = _pad_device.duplicate()
+		return
+	var claims := {}
+	for c: Variant in _pad_device:
+		claims[int(c)] = true
+	var taken := {}
+	var live := [-1, -1, -1, -1]
+	# Seat order wins: P1 is resolved first, so a solo player is never left
+	# padless while a higher seat holds the only pad that's there.
+	for p in 4:
+		var c := int(_pad_device[p])
+		if connected.has(c) and not taken.has(c):
+			live[p] = c
+			taken[c] = true
+			continue
+		var pick := -1
+		for d: int in connected:          # a spare pad nobody claimed first…
+			if not taken.has(d) and not claims.has(d):
+				pick = d
+				break
+		if pick < 0:
+			for d: int in connected:      # …else the lowest pad still free
+				if not taken.has(d):
+					pick = d
+					break
+		if pick >= 0:
+			live[p] = pick
+			taken[pick] = true
+		elif not taken.has(c):
+			live[p] = c                   # nothing left: absent stays absent
+		else:
+			live[p] = PAD_NONE + p        # never two seats on one pad
+	_pad_live = live
+
+
+func pad_bomb(p: int) -> int:
+	return int(_pad_bomb[clampi(p, 0, 3)])
+
+
+func pad_system(action: String) -> int:
+	return int(_pad_system.get(action, PAD_SYSTEM_DEFAULTS.get(action, -1)))
+
+
+## The pad `device` now drives player p; whoever had it takes p's old pad.
+func claim_pad(p: int, device: int) -> void:
+	p = clampi(p, 0, 3)
+	var other := _pad_device.find(device)
+	if other >= 0 and other != p:
+		_pad_device[other] = _pad_device[p]
+	_pad_device[p] = device
+	_apply_pads()
+	_save_and_notify()
+
+
+## Player p's bomb button. "" on success, else the refusal to show.
+func set_pad_bomb(p: int, code: int) -> String:
+	if PAD_MOVE.has(code):
+		return "the d-pad moves — pick another button"
+	if not _pad_code_ok(code):
+		return "that control can't be bound"
+	for a: String in _pad_system:
+		if int(_pad_system[a]) == code:
+			return "%s is the %s button" % [pad_code_name(code), PAD_SYSTEM_NAMES[a]]
+	_pad_bomb[clampi(p, 0, 3)] = code
+	_apply_pads()
+	_save_and_notify()
+	return ""
+
+
+## A system button (pause / quit_to_menu / restart), shared by every pad.
+func set_pad_system(action: String, code: int) -> String:
+	if not PAD_SYSTEM_DEFAULTS.has(action):
+		return "unknown action"
+	if PAD_MOVE.has(code):
+		return "the d-pad moves — pick another button"
+	# Triggers are analog: every motion event above the dead zone reads
+	# as a fresh press, so PAUSE on RT flickered on and off (v12.6).
+	if code >= PAD_TRIGGER:
+		return "triggers can only bomb — pick a button"
+	if not _pad_code_ok(code):
+		return "that control can't be bound"
+	for p in 4:
+		if int(_pad_bomb[p]) == code:
+			return "P%d bombs with %s" % [p + 1, pad_code_name(code)]
+	for a: String in _pad_system:
+		if a != action and int(_pad_system[a]) == code:
+			return "%s already is %s" % [pad_code_name(code), PAD_SYSTEM_NAMES[a]]
+	_pad_system[action] = code
+	_apply_pads()
+	_save_and_notify()
+	return ""
+
+
+## "pad 2 · A" — the help screens' gamepad half for player p.
+func pad_text(p: int) -> String:
+	if pad_live(p) >= PAD_NONE:
+		return "no pad free"
+	return "pad %d · %s" % [pad_live(p) + 1, pad_code_name(pad_bomb(p))]
+
+
+## The shared system button for `action`, by name ("START").
+func pad_system_name(action: String) -> String:
+	return pad_code_name(pad_system(action))
+
+
+func reset_pads() -> void:
+	_pad_device = [0, 1, 2, 3]
+	_pad_bomb = [JOY_BUTTON_A, JOY_BUTTON_A, JOY_BUTTON_A, JOY_BUTTON_A]
+	_pad_system = PAD_SYSTEM_DEFAULTS.duplicate()
+	_stick_deadzone = 0.2
+	_apply_pads()
+	_save_and_notify()
+
+
+var stick_deadzone: float:
+	get:
+		return _stick_deadzone
+	set(v):
+		v = clampf(v, STICK_DEADZONE_RANGE.x, STICK_DEADZONE_RANGE.y)
+		if is_equal_approx(v, _stick_deadzone):
+			return
+		_stick_deadzone = v
+		_apply_pads()
+		_save_and_notify()
+
 ## Battle setup ranges (min, max) — sliders in the setup panel clamp here.
 ## Sizes beyond MULTI_MAX_* need a scrolling camera and are therefore
 ## single-player-vs-AI only; multiplayer (shared screen) clamps to fit.
@@ -625,6 +811,13 @@ var _music_on := true
 var _music_volume := 0.5
 var _fullscreen := false
 var _player_tags := false
+var _pad_device: Array = [0, 1, 2, 3]
+## The pad ACTUALLY driving each seat right now (see _resolve_live_pads):
+## the claimed one when it's connected, else a fallback — never saved.
+var _pad_live: Array = [0, 1, 2, 3]
+var _pad_bomb: Array = [JOY_BUTTON_A, JOY_BUTTON_A, JOY_BUTTON_A, JOY_BUTTON_A]
+var _pad_system: Dictionary = PAD_SYSTEM_DEFAULTS.duplicate()
+var _stick_deadzone := 0.2   # the engine's own default — same feel as before
 var _player_keys: Array = [PLAYER_KEYS[0].duplicate(),
 	PLAYER_KEYS[1].duplicate(), PLAYER_KEYS[2].duplicate(),
 	PLAYER_KEYS[3].duplicate()]
@@ -643,6 +836,8 @@ var _save_timer: SceneTreeTimer
 
 
 func _ready() -> void:
+	# F11 / Alt+Enter must work while a battle's tree is paused (v12.6).
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_register_actions()
 	_register_ui_joypad()
 	# Handhelds (v12.4): the Steam Deck launcher sets DYNAMAN_HANDHELD, so a
@@ -651,7 +846,16 @@ func _ready() -> void:
 	if not OS.get_environment("DYNAMAN_HANDHELD").is_empty():
 		_fullscreen = true
 	_load()
+	# `--fullscreen` / `-f` on the command line wins over a saved "off"
+	# (v12.6: _apply_fullscreen used to undo it at once).
+	var args := OS.get_cmdline_args()
+	if args.has("--fullscreen") or args.has("-f"):
+		_fullscreen = true
 	_apply_fullscreen()
+	_fit_window_to_screen()
+	# Pads come and go: re-resolve which pad drives which seat (v12.6).
+	Input.joy_connection_changed.connect(func(_d: int, _c: bool) -> void:
+		_apply_pads())
 
 
 func _exit_tree() -> void:
@@ -710,23 +914,6 @@ func _register_actions() -> void:
 			var key := InputEventKey.new()
 			key.physical_keycode = _player_keys[p][d] as Key
 			InputMap.action_add_event(action, key)
-			# Gamepad for this player: d-pad + stick, A to bomb.
-			if d == 4:
-				var jb := InputEventJoypadButton.new()
-				jb.device = p
-				jb.button_index = JOY_BUTTON_A
-				InputMap.action_add_event(action, jb)
-			else:
-				var pad := InputEventJoypadButton.new()
-				pad.device = p
-				pad.button_index = [JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_LEFT,
-					JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_RIGHT][d] as JoyButton
-				InputMap.action_add_event(action, pad)
-				var stick := InputEventJoypadMotion.new()
-				stick.device = p
-				stick.axis = JOY_AXIS_LEFT_Y if (d == 0 or d == 2) else JOY_AXIS_LEFT_X
-				stick.axis_value = -1.0 if (d == 0 or d == 1) else 1.0
-				InputMap.action_add_event(action, stick)
 	for action: String in SYSTEM_ACTIONS:
 		if not InputMap.has_action(action):
 			InputMap.add_action(action)
@@ -734,16 +921,61 @@ func _register_actions() -> void:
 			var ev := InputEventKey.new()
 			ev.physical_keycode = keycode as Key
 			InputMap.action_add_event(action, ev)
-	# A pad-only couch must be able to run the show (v11.8): START
-	# pauses/resumes (and leaves the trophy screen), BACK quits to the
-	# menu, Y is R. These were keyboard-only — pad players got stuck on
-	# the battle-end screen for good. Any pad (device -1); A stays bomb.
-	for pair: Array in [["pause", JOY_BUTTON_START],
-			["quit_to_menu", JOY_BUTTON_BACK], ["restart", JOY_BUTTON_Y]]:
-		var jb := InputEventJoypadButton.new()
-		jb.device = -1
-		jb.button_index = pair[1] as JoyButton
-		InputMap.action_add_event(pair[0], jb)
+	_apply_pads()
+
+
+## Rebuild every gamepad binding from the live tables (v12.5). Each
+## player's pad (_pad_device) drives its d-pad + left stick (dead zone
+## _stick_deadzone) and its bomb code; the system actions answer ANY pad
+## (device -1) — a pad-only couch must be able to pause, quit and
+## rematch (v11.8: START / BACK / Y by default).
+func _apply_pads() -> void:
+	_resolve_live_pads()
+	var dir_names := ["up", "left", "down", "right", "bomb"]
+	for p in 4:
+		var dev := int(_pad_live[p])
+		for d in 5:
+			var action := "p%d_%s" % [p + 1, dir_names[d]]
+			if not InputMap.has_action(action):
+				continue
+			_erase_pad_events(action)
+			if d == 4:
+				InputMap.action_add_event(action, _pad_event(int(_pad_bomb[p]), dev))
+				InputMap.action_set_deadzone(action, 0.5)  # a trigger bombs at half-pull
+				continue
+			var pad := InputEventJoypadButton.new()
+			pad.device = dev
+			pad.button_index = PAD_MOVE[d] as JoyButton
+			InputMap.action_add_event(action, pad)
+			var stick := InputEventJoypadMotion.new()
+			stick.device = dev
+			stick.axis = JOY_AXIS_LEFT_Y if (d == 0 or d == 2) else JOY_AXIS_LEFT_X
+			stick.axis_value = -1.0 if (d == 0 or d == 1) else 1.0
+			InputMap.action_add_event(action, stick)
+			InputMap.action_set_deadzone(action, _stick_deadzone)
+	for action: String in PAD_SYSTEM_DEFAULTS:
+		if InputMap.has_action(action):
+			_erase_pad_events(action)
+			InputMap.action_add_event(action, _pad_event(pad_system(action), -1))
+
+
+func _erase_pad_events(action: String) -> void:
+	for ev: InputEvent in InputMap.action_get_events(action):
+		if ev is InputEventJoypadButton or ev is InputEventJoypadMotion:
+			InputMap.action_erase_event(action, ev)
+
+
+static func _pad_event(code: int, device: int) -> InputEvent:
+	if code >= PAD_TRIGGER:
+		var m := InputEventJoypadMotion.new()
+		m.device = device
+		m.axis = (code - PAD_TRIGGER) as JoyAxis
+		m.axis_value = 1.0
+		return m
+	var b := InputEventJoypadButton.new()
+	b.device = device
+	b.button_index = code as JoyButton
+	return b
 
 
 func _odd(v: int) -> int:
@@ -752,6 +984,23 @@ func _odd(v: int) -> int:
 
 func _headless() -> bool:
 	return DisplayServer.get_name() == "headless"
+
+
+## A 1280x720 window on a smaller screen (an 800x480 Pi panel) used to
+## open larger than the display: shrink it to fit, keeping 16:9, and
+## centre it (v12.6). Full screen needs nothing.
+func _fit_window_to_screen() -> void:
+	if _headless() or _fullscreen:
+		return
+	var scr := DisplayServer.window_get_current_screen()
+	var usable := DisplayServer.screen_get_usable_rect(scr)
+	var win := DisplayServer.window_get_size()
+	if usable.size.x <= 0 or (win.x <= usable.size.x and win.y <= usable.size.y):
+		return
+	var k := minf(float(usable.size.x) / win.x, float(usable.size.y) / win.y) * 0.95
+	var fit := Vector2i(int(win.x * k), int(win.y * k))
+	DisplayServer.window_set_size(fit)
+	DisplayServer.window_set_position(usable.position + (usable.size - fit) / 2)
 
 
 func _apply_fullscreen() -> void:
@@ -764,7 +1013,13 @@ func _apply_fullscreen() -> void:
 
 func _load() -> void:
 	var cf := ConfigFile.new()
-	if cf.load(SAVE_PATH) != OK:
+	var err := cf.load(SAVE_PATH)
+	if err != OK:
+		if FileAccess.file_exists(SAVE_PATH):
+			# Unreadable (a power cut mid-write?): keep a copy before the
+			# next save writes defaults over it (v12.6, as arenas.cfg does).
+			DirAccess.copy_absolute(ProjectSettings.globalize_path(SAVE_PATH),
+				ProjectSettings.globalize_path(SAVE_PATH + ".bak"))
 		return
 	_players = clampi(int(cf.get_value(SECTION, "players", _players)), 0, 4)
 	_solo_bots = clampi(int(cf.get_value(SECTION, "solo_bots", _solo_bots)), 0, 3)
@@ -836,6 +1091,7 @@ func _load() -> void:
 				for d in 5:
 					_player_keys[i][d] = PLAYER_KEYS[i][d]
 		_apply_player_keys()
+	_load_pads(cf)
 	_arena_random_scope = str(cf.get_value(SECTION, "arena_random_scope", _arena_random_scope))
 	if not ["all", "builtin", "mine"].has(_arena_random_scope):
 		_arena_random_scope = "all"
@@ -853,9 +1109,55 @@ func _load() -> void:
 		_arena_skin = "classic"
 
 
+## Gamepad tables from the cfg (v12.5). Each table is validated as a
+## whole — a hand-edited twin pad, a d-pad bomb or a system clash falls
+## back to the factory table rather than ghost-driving two players.
+func _load_pads(cf: ConfigFile) -> void:
+	var dev: Variant = cf.get_value(SECTION, "pad_device", [])
+	if dev is Array and (dev as Array).size() == 4:
+		var seen := {}
+		var ok := true
+		for v: Variant in dev:
+			if not (v is int) or int(v) < 0 or int(v) > 15 or seen.has(int(v)):
+				ok = false
+			seen[int(v) if v is int else -1] = true
+		if ok:
+			_pad_device = (dev as Array).duplicate()
+	var bombs: Variant = cf.get_value(SECTION, "pad_bomb", [])
+	var sys: Variant = cf.get_value(SECTION, "pad_system", {})
+	var nb: Array = _pad_bomb.duplicate()
+	var ns: Dictionary = _pad_system.duplicate()
+	if bombs is Array and (bombs as Array).size() == 4:
+		for i in 4:
+			var c: Variant = bombs[i]
+			if c is int and _pad_code_ok(int(c)):
+				nb[i] = int(c)
+	if sys is Dictionary:
+		for a: String in PAD_SYSTEM_DEFAULTS:
+			var c: Variant = (sys as Dictionary).get(a, null)
+			if c is int and _pad_code_ok(int(c)) and int(c) < PAD_TRIGGER:
+				ns[a] = int(c)
+	var clash := false
+	var used := {}
+	for a: String in ns:
+		if used.has(int(ns[a])) or nb.has(int(ns[a])):
+			clash = true
+		used[int(ns[a])] = true
+	if not clash:
+		_pad_bomb = nb
+		_pad_system = ns
+	_stick_deadzone = clampf(float(cf.get_value(SECTION, "stick_deadzone", _stick_deadzone)),
+		STICK_DEADZONE_RANGE.x, STICK_DEADZONE_RANGE.y)
+	_apply_pads()
+
+
 func _save() -> void:
 	_save_timer = null
+	# Start from the file on disk so keys THIS build doesn't know survive —
+	# an older build sharing the folder used to erase a newer one's
+	# settings on its first save (v12.6).
 	var cf := ConfigFile.new()
+	cf.load(SAVE_PATH)
 	cf.set_value(SECTION, "players", _players)
 	cf.set_value(SECTION, "arena_w", _arena_w)
 	cf.set_value(SECTION, "arena_h", _arena_h)
@@ -884,13 +1186,25 @@ func _save() -> void:
 	cf.set_value(SECTION, "bot_skill", _bot_skill)
 	cf.set_value(SECTION, "team_mode", _team_mode)
 	cf.set_value(SECTION, "player_keys", _player_keys)
+	cf.set_value(SECTION, "pad_device", _pad_device)
+	cf.set_value(SECTION, "pad_bomb", _pad_bomb)
+	cf.set_value(SECTION, "pad_system", _pad_system)
+	cf.set_value(SECTION, "stick_deadzone", _stick_deadzone)
 	cf.set_value(SECTION, "bomb_style", _bomb_style)
 	cf.set_value(SECTION, "player_bomb_styles", _player_bomb_styles)
 	cf.set_value(SECTION, "blast_hint", _blast_hint)
 	cf.set_value(SECTION, "solo_bots", _solo_bots)
 	cf.set_value(SECTION, "fill_bots", _fill_bots)
 	cf.set_value(SECTION, "demo_bots", _demo_bots)
-	cf.save(SAVE_PATH)
+	# Write beside, then swap in: a crash or power cut mid-write can no
+	# longer leave a half-written dynaman.cfg behind (v12.6).
+	var tmp := SAVE_PATH + ".tmp"
+	var err := cf.save(tmp)
+	if err == OK:
+		err = DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp),
+			ProjectSettings.globalize_path(SAVE_PATH))
+	if err != OK:
+		push_warning("Settings: could not save %s (error %d)" % [SAVE_PATH, err])
 
 
 func _save_and_notify() -> void:

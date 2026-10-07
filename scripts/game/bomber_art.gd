@@ -12,6 +12,36 @@ extends RefCounted
 const RASTER_SCALE := 2.0  # svg rasterization scale (crisp at ~150 px tall)
 
 static var _cache: Dictionary = {}
+## Keys the growth guard never evicts: the seats' own colours (v12.6 —
+## clearing EVERYTHING after ~8 random boss colours made every player's
+## sprites rasterize again mid-battle).
+static var _pinned: Dictionary = {}
+const VIEWS := ["front", "back", "side"]
+
+
+## Rasterize every walking view of a bomber in `col` now (both frames),
+## plus its bomb — so the first turn, the first boss step or the first
+## potion uncork doesn't rasterize mid-play (v12.6). `pin` keeps them
+## through the cache's growth guard.
+static func prewarm(col: Color, style := "classic", pin := false) -> void:
+	var keys: Array[String] = []
+	for view: String in VIEWS:
+		for f in [0, 1]:
+			texture(view, f, col)
+			keys.append(_key(view, f, col))
+	bomb_texture(col, style)
+	keys.append(_key("bomb" if style == "classic" else "bomb_" + style, -1, col))
+	if style == "potion":
+		for part: String in ["bomb_potion_open", "bomb_potion_cork"]:
+			texture(part, -1, col)
+			keys.append(_key(part, -1, col))
+	if pin:
+		for k: String in keys:
+			_pinned[k] = true
+
+
+static func _key(view: String, frame: int, col: Color) -> String:
+	return "%s_%d_%s" % [view, frame, col.to_html(false)]
 static var _templates: Dictionary = {}
 
 
@@ -30,7 +60,7 @@ static func bomb_texture(col: Color, style := "classic") -> ImageTexture:
 
 
 static func texture(view: String, frame: int, col: Color) -> ImageTexture:
-	var key := "%s_%d_%s" % [view, frame, col.to_html(false)]
+	var key := _key(view, frame, col)
 	if _cache.has(key):
 		return _cache[key]
 	# frame -1 = frameless template (the bomb).
@@ -51,6 +81,8 @@ static func texture(view: String, frame: int, col: Color) -> ImageTexture:
 	# rasterized textures per distinct colour for the whole session.
 	# (Boss hues are also quantized main-side; this is the backstop.)
 	if _cache.size() > 96:
-		_cache.clear()
+		for k: String in _cache.keys():
+			if not _pinned.has(k):
+				_cache.erase(k)
 	_cache[key] = tex
 	return tex

@@ -107,10 +107,19 @@ var round_t := 150.0
 var _count_t := 0.0
 var _count_step := 0
 var _end_t := 0.0
+## The round-end ceremony waits CER_DELAY so the deciding blast and the
+## loser's spin are SEEN first (v12.6: the card covered them that frame).
+const CER_DELAY := 0.9
+var _cer_pending := Callable()
+var _cer_at := 0.0
+## "GO!" hands over control at once and fades from the banner a beat later.
+var _go_hide_at := 0.0
 
 var _tiles_root: Node2D
 var _entities_root: Node2D
 var _flame_canvas: Node2D
+var _goo_canvas: Node2D
+var _field_layer: CanvasLayer
 var _glow_canvas: Node2D
 ## Expanding shockwave rings: {"px": Vector2, "born": float, "col": Color}.
 var _rings: Array = []
@@ -120,13 +129,21 @@ var _rings: Array = []
 ## behind the pause screen and the SEDATIVE (time_scale 0.5) halved the
 ## fire window while everything else slowed down.
 var _clock := 0.0
+## Per-seat input action names, built once (formatting "p%d_up" for
+## every Input call, every player, every frame was pure churn).
+var _acts: Array = []
 ## Bricks (and ground items) burned in the last SHIELD_S: cell ->
 ## expiry on _clock. They still stop rays (see _detonate, SHIELD_S).
 var _shield: Dictionary = {}
+var _bomb_map: Dictionary = {}     # see _bomb_cells
+var _bomb_map_frame := -1
 ## Bricks still BURNING: cell -> expiry on _clock. Solid to everyone —
 ## a burning block is no hiding place (v12.2: the cell turned floor at
 ## once while every ray stopped short of it, a 0.45 s fireproof hole).
 var _burning: Dictionary = {}
+## Bricks mid-burn: cell -> {"spr": the brick sprite, "base": its scale,
+## "item": the hidden item's sprite or null} — animated by _tick_burns.
+var _burn_fx: Dictionary = {}
 ## Cell -> the chain whose blast burned the brick there: that chain's
 ## later blasts spare the item (or doorway) it uncovered, however long
 ## it ripples (v12.2: past SHIELD_S, a 5th link torched it).
@@ -201,7 +218,17 @@ var _men: Menagerie  # the extended monster roster (v6.8)
 
 
 func _ready() -> void:
+	for n in range(1, 5):
+		var d := {}
+		for a: String in ["up", "down", "left", "right", "bomb"]:
+			d[a] = StringName("p%d_%s" % [n, a])
+		_acts.append(d)
 	rng.randomize()
+	# The battle scene runs through a tree PAUSE (input, HUD, pause card);
+	# its world layers are pausable (see _build_layers / _process).
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	Input.joy_connection_changed.connect(_on_joy_connection_changed)
+	get_viewport().size_changed.connect(_on_viewport_resized)
 	_brain = BomberBrain.new(self)
 	_fx = BlastFx.new(self)
 	_cer = Ceremonies.new(self)
@@ -412,7 +439,9 @@ func _tick_rim(p: Bomber, delta: float) -> void:
 			p.bot_dir = [Vector2.LEFT, Vector2.RIGHT, Vector2.UP,
 				Vector2.DOWN][rng.randi() % 4] if rng.randf() < 0.7 else Vector2.ZERO
 		dirv = p.bot_dir
-		if p.rim_cd <= 0.0 and rng.randf() < 0.04:
+		# ~4% per 60 Hz frame, scaled to the real frame: the throw rate used
+		# to double at 144 fps and halve at 30 (v12.6).
+		if p.rim_cd <= 0.0 and rng.randf() < 1.0 - pow(0.96, delta * 60.0):
 			var rc := _rim_xy(p.rim_pos)
 			for q: Bomber in players:
 				if q.alive and (p.team < 0 or q.team != p.team) \
@@ -470,11 +499,14 @@ func _start_round() -> void:
 	round_num += 1
 	_round_serial += 1
 	_end_chains()    # a chain cut short by R / a new round still lands its BOOM
+	_cer_pending = Callable()   # an impatient R skips a card not yet shown
+	_go_hide_at = 0.0
 	_rings.clear()   # last round's shockwaves and glow must not hang over the
 	if _glow_canvas != null:   # new board through the countdown (v12.2)
 		_glow_canvas.queue_redraw()
 	_shield.clear()  # last round's burning bricks belong to another board
 	_burning.clear()
+	_burn_fx.clear()
 	_revealed.clear()
 	# The cabinet's dose card for this round (v11.0): the SEDATIVE bends
 	# time itself, and any open bottle marks the round MEDICATED.
@@ -530,8 +562,11 @@ func _start_round() -> void:
 		Settings.bonus_density, Settings.danger_share, rng)
 	_layout_metrics()
 	bombs.clear()
+	_bomb_map_frame = -1
 	flames.clear()
 	goo.clear()   # a rematch must not inherit last round's slick (v10.4)
+	if _goo_canvas != null:
+		_goo_canvas.queue_redraw()
 	ground_items.clear()
 	enemies.clear()
 	for fb: Dictionary in fireballs:
@@ -564,7 +599,9 @@ func _start_round() -> void:
 		p.bot_bomb_cell = Vector2i(-99, -99)
 		p.bot_goal = Bomber.NO_GOAL
 		p.bot_dir = Vector2.ZERO
-		p.bot_t = 0.0
+		# Staggered first plans (v12.6): every bot used to replan on the
+		# SAME frame each 0.14 s — a periodic spike instead of a spread.
+		p.bot_t = BomberBrain.BOT_REPLAN_S * bot_replan_mult() * float(p.i) / 4.0
 		p.fx = {}  # aura nodes died with the old player node
 		# THE MEDICINE CABINET (v11.0): battle-only, humans-only doses.
 		if not p.bot:
@@ -582,6 +619,9 @@ func _start_round() -> void:
 			p.kick = Story.has_kick()
 		p.pos = Vector2(spawns[p.i])
 		_spawn_player_node(p)
+		# Every view of this seat now, during the countdown — turning for
+		# the first time used to rasterize mid-play (v12.6). Pinned.
+		BomberArt.prewarm(_player_col(p.i), Settings.bomb_style_for(p.i), true)
 	# Keep monsters clear of the corners actually OCCUPIED: the four-corner
 	# list starved small solo boards of legal spawn cells (v11.8).
 	var occupied: Array[Vector2i] = []
@@ -747,6 +787,7 @@ func _spawn_enemy_at(etype: String, c: Vector2i) -> Monster:
 	var ecol := Color.WHITE
 	if etype == "bomber":
 		ecol = _random_boss_color()
+		BomberArt.prewarm(ecol)   # all its views now, not on its first steps
 	var spr := Sprite2D.new()
 	spr.texture = _tex[{"balloon": "balloon", "chomper": "chomper_0",
 		"saw": "saw", "ghost": "ghost", "bees": "bees",
@@ -883,6 +924,14 @@ func _update_player_sprite(p: Bomber) -> void:
 
 
 func _process(delta: float) -> void:
+	# PAUSE freezes the WORLD (v12.6): flames, particles, burning bricks,
+	# death spins and smoke used to play on behind the pause card — fire
+	# burned out of sight yet stayed lethal on resume. The battle scene
+	# itself keeps processing (input, HUD, the pause card); the four world
+	# layers are pausable.
+	var want_pause := state == State.PAUSE
+	if get_tree().paused != want_pause:
+		get_tree().paused = want_pause
 	# A chain owns its Sfx voice until its last blast — renewed every
 	# frame (PAUSE included) so a long pause can't hand it to a lone bomb
 	# whose BOOM the chain's next beat would then cut (v12.2).
@@ -908,6 +957,10 @@ func _process(delta: float) -> void:
 		State.ROUND_END, State.BATTLE_END:
 			_tick_chains(delta)  # a chain that ended the round still ripples out
 			_tick_flames()
+			if _cer_pending.is_valid() and _clock >= _cer_at:
+				var show := _cer_pending
+				_cer_pending = Callable()
+				show.call()
 			_end_t -= delta
 			if state == State.ROUND_END and _end_t <= 0.0:
 				_start_round()
@@ -933,12 +986,15 @@ func _process(delta: float) -> void:
 		want.y = clampf(want.y, 0.0,
 			maxf(cell_px * arena.h + HUD_H + 20.0 - view.y, 0.0))
 		_cam = _cam.lerp(want, 1.0 - exp(-delta * 6.0))
-		_field.position = -_cam
 	var world_off := shake_off - _cam
+	# The floor (checker + blast hint) shakes WITH the board — it used to
+	# stand still while walls and bombers jittered over it (v12.6).
+	_field.position = world_off
 	_tiles_root.position = world_off
 	_entities_root.position = world_off
 	_flame_canvas.position = world_off
 	_glow_canvas.position = world_off
+	_goo_canvas.position = world_off
 
 
 # ----------------------------------------------------------- sudden death ---
@@ -1077,15 +1133,20 @@ func _tick_countdown(delta: float) -> void:
 				_banner.text = str(3 - step)
 				Sfx.play("count")
 			3:
+				# GO means go (v12.6): control starts WITH the word — it
+				# used to follow a full second later, eating early bombs.
 				_banner.text = "GO!"
 				Sfx.play("go")
-			_:
-				_banner.visible = false
 				_sub_banner.visible = false
+				_go_hide_at = _clock + 0.6
 				state = State.PLAY
 
 
 func _tick_play(delta: float) -> void:
+	if _go_hide_at > 0.0 and _clock >= _go_hide_at:
+		_go_hide_at = 0.0
+		if _banner.text == "GO!":
+			_banner.visible = false
 	round_t -= delta
 	var secs := int(round_t)
 	if secs != _timer_shown:
@@ -1129,6 +1190,7 @@ func _tick_play(delta: float) -> void:
 		for c: Vector2i in goo.keys():
 			if float(goo[c]) < _clock:
 				goo.erase(c)
+				_goo_canvas.queue_redraw()
 	_move_enemies(delta)
 	_tick_fireballs(delta)
 	_check_kills()
@@ -1144,15 +1206,15 @@ func _tick_play(delta: float) -> void:
 # -------------------------------------------------------------- movement ----
 
 func _input_vec(p: Bomber) -> Vector2:
-	var i: int = p.i + 1
+	var acts: Dictionary = _acts[p.i]
 	var v := Vector2.ZERO
-	if Input.is_action_pressed("p%d_up" % i):
+	if Input.is_action_pressed(acts["up"]):
 		v.y -= 1
-	if Input.is_action_pressed("p%d_down" % i):
+	if Input.is_action_pressed(acts["down"]):
 		v.y += 1
-	if Input.is_action_pressed("p%d_left" % i):
+	if Input.is_action_pressed(acts["left"]):
 		v.x -= 1
-	if Input.is_action_pressed("p%d_right" % i):
+	if Input.is_action_pressed(acts["right"]):
 		v.x += 1
 	if p.curse == Curse.REVERSE or p.curse == Curse.REV_SLOW:
 		v = -v
@@ -1167,9 +1229,9 @@ func _passable(c: Vector2i, p_idx: int) -> bool:
 		return false
 	if v == Arena.BRICK and not players[p_idx].wallpass:
 		return false
-	for b: Dictionary in bombs:
-		if b["cell"] == c and not (b["walkers"] as Array).has(p_idx):
-			return false
+	var b: Variant = _bomb_cells().get(c)
+	if b != null and not ((b as Dictionary)["walkers"] as Array).has(p_idx):
+		return false
 	return true
 
 
@@ -1198,12 +1260,24 @@ func _move_player(p: Bomber, delta: float) -> void:
 	# One axis at a time; when both pressed, keep the current one.
 	var axis_x := absf(iv.x) > 0.0
 	if axis_x and absf(iv.y) > 0.0:
-		if p.move_dir == Vector2.ZERO and not p.bot:
-			# From a standstill the STRONGER push wins (v11.8): a stick
-			# pushed right but a little off-axis always went vertical.
-			var n := p.i + 1
-			axis_x = absf(Input.get_axis("p%d_left" % n, "p%d_right" % n)) \
-				>= absf(Input.get_axis("p%d_up" % n, "p%d_down" % n))
+		if not p.bot:
+			var acts: Dictionary = _acts[p.i]
+			var sx := absf(Input.get_axis(acts["left"], acts["right"]))
+			var sy := absf(Input.get_axis(acts["up"], acts["down"]))
+			if p.move_dir == Vector2.ZERO:
+				# From a standstill the STRONGER push wins (v11.8): a stick
+				# pushed right but a little off-axis always went vertical.
+				axis_x = sx >= sy
+			else:
+				# Moving, a CLEARLY stronger push on the other axis turns
+				# (v12.6): with a stick held ~60° the old "keep the current
+				# axis" ran you past every open junction. Two keys held =
+				# equal strengths = no switch, as before.
+				axis_x = p.move_dir.x != 0.0
+				if axis_x and sy > sx + 0.2:
+					axis_x = false
+				elif not axis_x and sx > sy + 0.2:
+					axis_x = true
 		else:
 			axis_x = p.move_dir.x != 0.0
 		# Both held, the kept axis walled and the other open: take the
@@ -1352,9 +1426,9 @@ func _danger_cells() -> Dictionary:
 				if not done.has(j):
 					waiting[bombs[j]["cell"]] = true
 			var b: Dictionary = bombs[i]
+			var before := _gone_before(i, gone, t2)   # once, for bricks AND items
 			var res: Dictionary = arena.blast(b["cell"], b["flame"], waiting,
-				_items_left_for(i, gone, t2), _gone_before(i, gone, t2),
-				_shield_at(t2[i]))
+				_items_left(before), before, _shield_at(t2[i]))
 			for c: Vector2i in res["chains"]:
 				for j in n:
 					if not done.has(j) and bombs[j]["cell"] == c \
@@ -1406,12 +1480,12 @@ func _gone_before(i: int, gone: Dictionary, te: Array[float]) -> Dictionary:
 	return out
 
 
-## The ground items still lying there when bomb `i` goes off.
-func _items_left_for(i: int, gone: Dictionary, te: Array[float]) -> Dictionary:
-	if ground_items.is_empty() or gone.is_empty():
+## The ground items still lying there once the cells in `before` are gone.
+func _items_left(before: Dictionary) -> Dictionary:
+	if ground_items.is_empty() or before.is_empty():
 		return ground_items
 	var out := ground_items.duplicate()
-	for c: Vector2i in _gone_before(i, gone, te):
+	for c: Vector2i in before:
 		out.erase(c)
 	return out
 
@@ -1421,7 +1495,7 @@ func _place_bomb_input(p: Bomber) -> void:
 		if not p.bot_bomb:
 			return
 		p.bot_bomb = false
-	elif not Input.is_action_just_pressed("p%d_bomb" % (p.i + 1)):
+	elif not Input.is_action_just_pressed(_acts[p.i]["bomb"]):
 		return
 	if p.curse == Curse.NO_BOMBS:
 		if not p.bot:
@@ -1462,6 +1536,7 @@ func _defuse_bomb(b: Dictionary) -> void:
 	if is_instance_valid(b["spark"]):
 		(b["spark"] as CPUParticles2D).queue_free()
 	bombs.erase(b)
+	_bomb_map_frame = -1
 
 
 ## The one true bomb factory: players pass their index, bomber ENEMIES
@@ -1495,7 +1570,7 @@ func _spawn_bomb(c: Vector2i, owner: int, owner_ref, col: Color, flame: int) -> 
 	if style == "potion":
 		spark.amount = 10
 		spark.lifetime = 0.9
-		spark.local_coords = false
+		spark.local_coords = true   # rides the board under follow-cam / shake (v12.6)
 		spark.direction = Vector2.UP
 		spark.spread = 12.0
 		spark.gravity = Vector2(0, -cell_px * 0.5)
@@ -1511,7 +1586,7 @@ func _spawn_bomb(c: Vector2i, owner: int, owner_ref, col: Color, flame: int) -> 
 	else:
 		spark.amount = 8
 		spark.lifetime = 0.45
-		spark.local_coords = false
+		spark.local_coords = true   # rides the board under follow-cam / shake (v12.6)
 		spark.direction = Vector2.UP
 		spark.spread = 55.0
 		spark.gravity = Vector2(0, cell_px * 1.2)
@@ -1524,6 +1599,7 @@ func _spawn_bomb(c: Vector2i, owner: int, owner_ref, col: Color, flame: int) -> 
 		ramp.set_color(1, Color(col.r, col.g, col.b, 0.0))
 	spark.color_ramp = ramp
 	spark.position = spr.position + _bomb_spark_off(style) * base * BomberArt.RASTER_SCALE
+	spark.z_index = 1   # y-sorted entities: the fuse spark stays on top of its bomb
 	_entities_root.add_child(spark)
 	# Everyone currently on the cell may walk off it (owner included).
 	var walkers: Array[int] = []
@@ -1531,6 +1607,7 @@ func _spawn_bomb(c: Vector2i, owner: int, owner_ref, col: Color, flame: int) -> 
 		if q.alive and Vector2i(q.pos.round()) == c:
 			walkers.append(q.i)
 	# Blast power and color are snapshotted at placement.
+	_bomb_map_frame = -1
 	bombs.append({"cell": c, "t": BOMB_FUSE, "owner": owner, "node": spr,
 		"walkers": walkers, "phase": 0.0, "base": base, "pop": 0.22,
 		"beat": 0, "spark": spark, "flame": flame, "col": col,
@@ -1730,7 +1807,9 @@ func _tick_bombs(delta: float) -> void:
 			left -= stp
 			b["spos"] = (b["spos"] as Vector2) + dirv * stp
 			cur = Vector2i((b["spos"] as Vector2).round())
-			b["cell"] = cur
+			if b["cell"] != cur:
+				b["cell"] = cur
+				_bomb_map_frame = -1
 			var past_center := ((b["spos"] as Vector2) - Vector2(cur)).dot(dirv) >= 0.0
 			if past_center and _kick_blocked(cur + (b["slide"] as Vector2i), b):
 				b["spos"] = Vector2(cur)
@@ -1808,11 +1887,19 @@ func _tick_bombs(delta: float) -> void:
 			_detonate(b)
 
 
+## cell -> bomb, built once per frame and rebuilt the moment bombs
+## change (_bomb_map_frame = -1 at every spawn/detonate/defuse/slide/
+## clear). Path searches ask "is there a bomb here?" for every cell they
+## touch: it used to loop over every bomb each time — 32 lookups per cell
+## under DELUXE, per bot, per replan (v12.6). Read-only for callers.
 func _bomb_cells() -> Dictionary:
-	var out: Dictionary = {}
-	for b: Dictionary in bombs:
-		out[b["cell"]] = b
-	return out
+	var f := Engine.get_process_frames()
+	if f != _bomb_map_frame:
+		_bomb_map_frame = f
+		_bomb_map = {}
+		for b: Dictionary in bombs:
+			_bomb_map[b["cell"]] = b
+	return _bomb_map
 
 
 ## One blast. Chain reactions PROPAGATE (v12.1): bombs this blast
@@ -1831,6 +1918,7 @@ func _detonate(b: Dictionary) -> void:
 	else:
 		chain["pending"] = int(chain["pending"]) - 1
 	bombs.erase(b)
+	_bomb_map_frame = -1
 	(b["node"] as Sprite2D).queue_free()
 	if is_instance_valid(b["spark"]):
 		(b["spark"] as CPUParticles2D).queue_free()
@@ -1995,13 +2083,17 @@ func _tick_chains(delta: float) -> void:
 
 func _burn_brick(c: Vector2i) -> void:
 	var item := arena.burn(c)
+	# The burn plays on the GAME clock for exactly as long as the cell
+	# stays solid (_burning, SHIELD_S): it used to fade out in 0.3 s of
+	# wall time — an invisible wall for the rest of the burn, and a fade
+	# that finished behind the pause card (v12.6). See _tick_burns.
+	var burn := {"spr": null, "base": Vector2.ONE, "item": null}
 	if brick_sprites.has(c):
 		var spr := brick_sprites[c] as Sprite2D
 		brick_sprites.erase(c)
-		var tw := create_tween()
-		tw.tween_property(spr, "modulate", Color(1, 0.5, 0.2, 0.0), 0.3)
-		tw.parallel().tween_property(spr, "scale", spr.scale * 1.2, 0.3)
-		tw.tween_callback(spr.queue_free)
+		burn["spr"] = spr
+		burn["base"] = spr.scale
+	_burn_fx[c] = burn
 	Sfx.play("brick", 0.12)
 	if c == portal_cell:
 		if state == State.PLAY:   # not over a defeat ceremony (v12.2)
@@ -2013,11 +2105,35 @@ func _burn_brick(c: Vector2i) -> void:
 		spr.texture = _tex[ITEM_SPRITES[item]]
 		spr.scale = Vector2.ONE * (cell_px / 64.0) * 0.82
 		spr.position = _to_px(Vector2(c))
+		spr.visible = false   # revealed when the brick has burnt away
 		_tiles_root.add_child(spr)
 		item_sprites[c] = spr
+		burn["item"] = spr
+
+
+## Burning bricks: glow, swell and fade on the game clock, then make way
+## for whatever they were hiding.
+func _tick_burns() -> void:
+	for c: Vector2i in _burn_fx.keys():
+		var b: Dictionary = _burn_fx[c]
+		var k := clampf((float(_burning.get(c, 0.0)) - _clock) / SHIELD_S, 0.0, 1.0)
+		var spr: Variant = b["spr"]
+		if spr != null and is_instance_valid(spr):
+			(spr as Sprite2D).modulate = Color.WHITE.lerp(Color(1, 0.5, 0.2, 0.0), 1.0 - k)
+			(spr as Sprite2D).scale = (b["base"] as Vector2) * (1.0 + 0.2 * (1.0 - k))
+		if k > 0.0:
+			continue
+		if spr != null and is_instance_valid(spr):
+			(spr as Sprite2D).queue_free()
+		var item: Variant = b["item"]
+		if item != null and is_instance_valid(item):
+			(item as Sprite2D).visible = true
+		_burn_fx.erase(c)
 
 
 func _tick_flames() -> void:
+	if not _burn_fx.is_empty():
+		_tick_burns()
 	var now := _clock
 	var expired: Array = []
 	for c: Vector2i in flames:
@@ -2026,7 +2142,7 @@ func _tick_flames() -> void:
 	for c: Vector2i in expired:
 		flames.erase(c)
 	if not expired.is_empty() or not flames.is_empty() \
-			or not _rings.is_empty() or not goo.is_empty():
+			or not _rings.is_empty():
 		_flame_canvas.queue_redraw()
 		_glow_canvas.queue_redraw()
 
@@ -2089,7 +2205,14 @@ func _move_enemies(delta: float) -> void:
 		if not _men.pre_walk(e, delta):
 			pass
 		elif e.dir == Vector2i.ZERO or not e.has_dest():
-			_enemy_decide(e, Vector2i(pos.round()))
+			# An idle mini-boss used to re-plan EVERY frame (BFS, mining
+			# scan, escape check) while glaring at a wall — up to 8 s at a
+			# time, per boss. Idle bosses think at most every 0.08 s (v12.6).
+			e.think_t -= delta
+			if e.type != "bomber" or e.think_t <= 0.0:
+				_enemy_decide(e, Vector2i(pos.round()))
+				if e.type == "bomber" and (e.dir == Vector2i.ZERO or not e.has_dest()):
+					e.think_t = 0.08
 		else:
 			var dest: Vector2i = e.dest
 			var dest_ok := _ghost_passable(dest) if etype == "ghost" \
@@ -2253,7 +2376,7 @@ func _tick_fireballs(delta: float) -> void:
 			# Bound to the trail itself, not a lambda capturing it: the
 			# connection dies with the node (a battle left mid-fireball
 			# used to log "lambda capture was freed").
-			get_tree().create_timer(0.5).timeout.connect(trail.queue_free)
+			get_tree().create_timer(0.5, false).timeout.connect(trail.queue_free)
 			fireballs.remove_at(i)
 			_fireball_gone = true
 			continue
@@ -2344,10 +2467,7 @@ func _bomber_enemy_render(e: Monster, dir: Vector2i) -> void:
 func _enemy_passable(c: Vector2i) -> bool:
 	if arena.solid(c.x, c.y) or _is_burning(c):
 		return false
-	for b: Dictionary in bombs:
-		if b["cell"] == c:
-			return false
-	return true
+	return not _bomb_cells().has(c)
 
 
 # ------------------------------------------------------------ life & death --
@@ -2402,7 +2522,7 @@ func _check_kills() -> void:
 		if _men.flame_check(e):
 			_men.free_parts(e)
 			var node := e.node as Sprite2D
-			var tw := create_tween()
+			var tw := node.create_tween()   # freezes with the world in PAUSE
 			tw.tween_property(node, "scale", node.scale * 1.5, 0.2)
 			tw.parallel().tween_property(node, "modulate:a", 0.0, 0.2)
 			tw.tween_callback(node.queue_free)
@@ -2436,9 +2556,10 @@ func _story_finish(won: bool) -> void:
 ## Gamepad rumble (v4.6). Device index == player slot (settings.gd
 ## registers pad N for player N+1). No-op for bots and empty sockets.
 func _rumble(p: Bomber, weak: float, strong: float, dur: float) -> void:
-	if p.bot or not Input.get_connected_joypads().has(p.i):
+	var dev := Settings.pad_live(p.i)   # the pad driving this seat right now (v12.6)
+	if p.bot or not Input.get_connected_joypads().has(dev):
 		return
-	Input.start_joy_vibration(p.i, weak, strong, dur)
+	Input.start_joy_vibration(dev, weak, strong, dur)
 
 
 func _kill_player(p: Bomber) -> void:
@@ -2446,7 +2567,7 @@ func _kill_player(p: Bomber) -> void:
 	Sfx.play("die")
 	_rumble(p, 0.8, 1.0, 0.6)  # the big one — you just died
 	var node := p.node as Node2D
-	var tw := create_tween()
+	var tw := node.create_tween()   # freezes with the world in PAUSE
 	tw.set_parallel(true)
 	tw.tween_property(node, "rotation", TAU * 1.5, 0.7)
 	tw.tween_property(node, "scale", Vector2.ZERO, 0.7) \
@@ -2531,7 +2652,7 @@ func _update_portal_state() -> void:
 	_portal_fx = CPUParticles2D.new()
 	_portal_fx.amount = 14
 	_portal_fx.lifetime = 0.9
-	_portal_fx.local_coords = false
+	_portal_fx.local_coords = true   # stays on the door under follow-cam / shake (v12.6)
 	_portal_fx.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
 	_portal_fx.emission_sphere_radius = cell_px * 0.2
 	_portal_fx.direction = Vector2.UP
@@ -2571,6 +2692,7 @@ func _portal_punish() -> void:
 	_portal_punish_t = now
 	Sfx.play("skull")
 	var col := _random_boss_color()
+	BomberArt.prewarm(col)   # ~0.8 s before it steps out (v12.6)
 	_portal_emerge_retry(col, _round_serial)
 
 
@@ -2653,7 +2775,10 @@ func _finish_round(winner_idx: int) -> void:
 		_story_finish(false)  # solo end that wasn't a cleared pack = down
 		return
 	state = State.ROUND_END
-	_end_t = 3.4
+	# A death ends the round, but the CARD waits CER_DELAY so the blast
+	# and the spin play out; the portal escape already had its lead-in.
+	var delay := 0.0 if _exiting else CER_DELAY
+	_end_t = 3.4 + delay
 	Music.urgent = false  # hurry-up pressure ends with the round
 	if winner_idx >= 0:
 		var p: Bomber = players[winner_idx]
@@ -2675,16 +2800,18 @@ func _finish_round(winner_idx: int) -> void:
 		if battle_over:
 			state = State.BATTLE_END
 			_battle_end_at = _clock
-		_cer.show_victory(winner_idx, battle_over)
+		_cer_pending = _cer.show_victory.bind(winner_idx, battle_over)
 	else:
 		if players.size() == 1:
 			# Solo defeat gets a full ceremony too — the sad kind (v4.4).
 			state = State.BATTLE_END
 			_battle_end_at = _clock
-			_cer.show_defeat(winner_idx == -2)
+			_cer_pending = _cer.show_defeat.bind(winner_idx == -2)
 		else:
 			# v6.3: draws get a small ceremony instead of a bare banner.
-			_cer.show_draw(winner_idx == -2)
+			_cer_pending = _cer.show_draw.bind(winner_idx == -2)
+	_cer_at = _clock + delay
+	_battle_end_at += delay   # the pad's START grace counts from the CARD
 	_refresh_hud()
 
 
@@ -2790,6 +2917,7 @@ func _to_menu() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_EXIT_TREE:
+		get_tree().paused = false   # never hand a paused tree to the menu
 		_end_chains()   # quitting mid-chain still lands its BOOM
 		if _sedated:  # the SEDATIVE must not follow us out
 			Engine.time_scale *= 2.0
@@ -2800,12 +2928,26 @@ func _notification(what: int) -> void:
 		_win_focused = false
 		# Alt-tab must not kill a run (v10.0): auto-pause live rounds.
 		# The demo keeps rolling — attract mode is furniture.
-		if (state == State.PLAY or state == State.COUNTDOWN) and not _is_demo():
-			_paused_from = state
-			state = State.PAUSE
-			_pause_sync.call()
-			_pause_panel.visible = true
-			Sfx.play("pause")
+		_auto_pause()
+
+
+## Pause a live round on the player's behalf (alt-tab, a pad dropping
+## out). The demo keeps rolling — attract mode is furniture.
+func _auto_pause() -> void:
+	if (state == State.PLAY or state == State.COUNTDOWN) and not _is_demo():
+		_paused_from = state
+		state = State.PAUSE
+		_pause_sync.call()
+		_pause_panel.visible = true
+		Sfx.play("pause")
+
+
+## A pad dropping out mid-round (flat battery, a cable) pauses the round
+## instead of leaving its bomber to stand and die (v12.6). Settings has
+## already re-resolved which pad drives which seat by now.
+func _on_joy_connection_changed(_device: int, connected: bool) -> void:
+	if not connected and _humans > 0:
+		_auto_pause()
 
 
 # ----------------------------------------------------------------- layout ---
@@ -2827,6 +2969,35 @@ func _layout_metrics() -> void:
 	_cam = Vector2.ZERO
 	if _field != null:
 		_field.position = Vector2.ZERO  # stale pan would offset the checker
+	# A fresh layout: drop any mid-round resize fit (_on_viewport_resized).
+	scale = Vector2.ONE
+	position = Vector2.ZERO
+	if _field_layer != null:
+		_field_layer.transform = Transform2D.IDENTITY
+
+
+## The window changed mid-round (F11, Alt+Enter, the pause card's
+## Fullscreen box, a drag): the board was laid out for the OLD size and
+## got cut off or sat off-centre until the next round (v12.6). Every
+## world position derives from `origin` + `cell_px`, so one uniform
+## scale-and-offset on the battle scene (and the floor's layer) re-fits
+## it exactly; the next _start_round lays out natively again. Scrolling
+## solo arenas follow the camera anyway.
+func _on_viewport_resized() -> void:
+	if arena == null or _scroll_mode or cell_px <= 0.0:
+		return
+	var view := get_viewport().get_visible_rect().size
+	var fit := floorf(minf((view.x - 24.0) / arena.w,
+		(view.y - HUD_H - 36.0) / arena.h))
+	if fit <= 0.0:
+		return
+	var new_origin := Vector2((view.x - fit * arena.w) * 0.5,
+		HUD_H + (view.y - HUD_H - fit * arena.h) * 0.5)
+	var k := fit / cell_px
+	scale = Vector2(k, k)
+	position = new_origin - origin * k
+	if _field_layer != null:
+		_field_layer.transform = Transform2D(0.0, scale, 0.0, position)
 
 
 ## The potion's party trick (v6.0): swap to the uncorked bottle and
@@ -2900,14 +3071,22 @@ func _build_layout() -> void:
 	_field.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_field.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_field.draw.connect(_draw_field)
-	var field_layer := CanvasLayer.new()
-	field_layer.layer = -5
-	field_layer.add_child(_field)
-	add_child(field_layer)
+	_field_layer = CanvasLayer.new()
+	_field_layer.layer = -5
+	_field_layer.add_child(_field)
+	add_child(_field_layer)
 
 	_tiles_root = Node2D.new()
 	add_child(_tiles_root)
+	# Snail goo lies ON the floor, under everyone (v12.6: it was painted
+	# on the flame layer, over the bombers' bodies).
+	_goo_canvas = Node2D.new()
+	_goo_canvas.draw.connect(_draw_goo)
+	add_child(_goo_canvas)
 	_entities_root = Node2D.new()
+	# Depth by feet (v12.6): draw order was creation order, so every bomb
+	# hid the helmet of a bomber standing in the row below it.
+	_entities_root.y_sort_enabled = true
 	add_child(_entities_root)
 	_flame_canvas = Node2D.new()
 	_flame_canvas.draw.connect(_draw_flames)
@@ -2920,6 +3099,8 @@ func _build_layout() -> void:
 	_glow_canvas.material = glow_mat
 	_glow_canvas.draw.connect(_draw_glow)
 	add_child(_glow_canvas)
+	for world: Node in [_tiles_root, _goo_canvas, _entities_root, _flame_canvas, _glow_canvas]:
+		world.process_mode = Node.PROCESS_MODE_PAUSABLE   # frozen by PAUSE
 
 
 ## Two-tone checker under the whole arena, colours from the skin
@@ -2958,18 +3139,23 @@ func _rebuild_board() -> void:
 	# not a fixed 64: classic imports at 64 px, TileArt skins raster at 128.
 	var wall_tex := TileArt.wall(_skin)
 	var brick_tex := TileArt.brick(_skin)
-	for y in arena.h:
-		for x in arena.w:
-			var v := arena.cell(x, y)
-			if v == Arena.FLOOR:
-				continue
-			var spr := Sprite2D.new()
-			spr.texture = wall_tex if v == Arena.WALL else brick_tex
-			spr.scale = Vector2.ONE * (cell_px / spr.texture.get_width())
-			spr.position = _to_px(Vector2(x, y))
-			_tiles_root.add_child(spr)
-			if v == Arena.BRICK:
-				brick_sprites[Vector2i(x, y)] = spr
+	# All walls first, then all bricks (v12.6): row-by-row interleaving
+	# alternated textures every few sprites and broke the draw batching
+	# (hundreds of draw calls on big boards — felt on a Pi). Tiles never
+	# overlap, so the picture is identical.
+	for want: int in [Arena.WALL, Arena.BRICK]:
+		var tex := wall_tex if want == Arena.WALL else brick_tex
+		for y in arena.h:
+			for x in arena.w:
+				if arena.cell(x, y) != want:
+					continue
+				var spr := Sprite2D.new()
+				spr.texture = tex
+				spr.scale = Vector2.ONE * (cell_px / tex.get_width())
+				spr.position = _to_px(Vector2(x, y))
+				_tiles_root.add_child(spr)
+				if want == Arena.BRICK:
+					brick_sprites[Vector2i(x, y)] = spr
 	_field.queue_redraw()
 
 
@@ -2977,15 +3163,18 @@ func _rebuild_board() -> void:
 ## neighbors, and COOL — born as near-white flash, grading into the
 ## owner's tint as they age, collapsing dark at death. The white cores
 ## and shockwaves live on the additive glow layer above.
-func _draw_flames() -> void:
-	var now := _clock
-	# Snail goo first — puddles under everything else on this canvas.
+## Snail goo: puddles on the floor, under every entity.
+func _draw_goo() -> void:
 	for c: Vector2i in goo:
 		var center := _to_px(Vector2(c))
-		_flame_canvas.draw_circle(center, cell_px * 0.34,
+		_goo_canvas.draw_circle(center, cell_px * 0.34,
 			Color(0.62, 0.75, 0.35, 0.4))
-		_flame_canvas.draw_circle(center + Vector2(cell_px * 0.18, cell_px * 0.1),
+		_goo_canvas.draw_circle(center + Vector2(cell_px * 0.18, cell_px * 0.1),
 			cell_px * 0.14, Color(0.7, 0.82, 0.42, 0.35))
+
+
+func _draw_flames() -> void:
+	var now := _clock
 	for c: Vector2i in flames:
 		var f: Dictionary = flames[c]
 		var life: float = clampf((f["t"] - now) / FLAME_S, 0.0, 1.0)
@@ -3187,9 +3376,14 @@ func _build_hud() -> void:
 	vb.add_child(_make_label("PAUSED", 30, COL_GOLD, true, 6))
 	# Story fights have no rematch, and leaving one is a flight (a lost
 	# life) — say so; ENTER quits too, so it's on the card (v11.7).
-	vb.add_child(_make_label("ESC / START resume  ·  Q / ENTER / BACK flee (counts as a loss)"
-		if Story.active else "ESC / START resume  ·  R / Y rematch  ·  Q / ENTER / BACK quit to menu",
-		15, COL_TEXT, false, 1))
+	# The pad names follow OPTIONS → CONTROLS remaps (v12.6).
+	var p_res := Settings.pad_system_name("pause")
+	var p_rem := Settings.pad_system_name("restart")
+	var p_quit := Settings.pad_system_name("quit_to_menu")
+	vb.add_child(_make_label(("ESC / %s resume  ·  Q / ENTER / %s flee (counts as a loss)"
+		% [p_res, p_quit]) if Story.active else
+		("ESC / %s resume  ·  R / %s rematch  ·  Q / ENTER / %s quit to menu"
+		% [p_res, p_rem, p_quit]), 15, COL_TEXT, false, 1))
 	# Quick options (v10.0): the fixes people need MID-battle — ringing
 	# ears, a shaking screen, the window mode — without quitting to the
 	# menu. Values re-sync every time the panel shows (F11 exists now).
@@ -3312,14 +3506,16 @@ func _build_help_overlay() -> void:
 		var suffix := ""
 		if not active:
 			suffix = "   — bot" if i < players.size() else "   — open seat"
-		row.add_child(_make_label("P%d   %s   (or gamepad %d)%s"
-			% [i + 1, Settings.player_key_text(i), i + 1, suffix],
+		row.add_child(_make_label("P%d   %s   (or %s)%s"
+			% [i + 1, Settings.player_key_text(i), Settings.pad_text(i), suffix],
 			17, Color.WHITE if active else COL_DIM, false, 1))
 	if _is_demo():
 		vb.add_child(_make_label("all bots — sit back and enjoy the show",
 			17, Color.WHITE, false, 1))
 	vb.add_child(_make_label(
-		"ESC/START pause  ·  R/Y rematch (paused / battle over) · next round (round over)  ·  Q/BACK quit (paused / battle over)",
+		"ESC/%s pause  ·  R/%s rematch (paused / battle over) · next round (round over)  ·  Q/%s quit (paused / battle over)"
+			% [Settings.pad_system_name("pause"), Settings.pad_system_name("restart"),
+				Settings.pad_system_name("quit_to_menu")],
 		15, COL_TEXT, false, 1))
 	vb.add_child(_spacer_ctl(6))
 	# Power-up legend, real icons.
@@ -3377,7 +3573,7 @@ func _popup(text: String, color: Color, at_px: Vector2) -> void:
 	var lbl := _make_label(text, 22, color, true, 2)
 	# at_px is WORLD space; the HUD isn't — subtract the follow-cam
 	# (big solo arenas showed "KICK!" a screen away from you, v11.8).
-	lbl.position = at_px - _cam + Vector2(-60, -50)
+	lbl.position = transform * (at_px - _cam) + Vector2(-60, -50)
 	lbl.size = Vector2(120, 30)
 	_hud.add_child(lbl)
 	var tw := create_tween()

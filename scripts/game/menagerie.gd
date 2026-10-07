@@ -103,9 +103,12 @@ func on_spawn(e: Monster) -> void:
 			# Body shrinks gently toward the tail.
 			seg.scale = Vector2.ONE * (g.cell_px / 64.0) * (0.98 - 0.06 * i)
 			seg.position = g._to_px(e.pos)
-			seg.z_index = -1 - i  # head draws over neck, neck over torso...
+			# z 0 + the y-sorted entity layer (v12.6): negative z slid the
+			# body under bricks, items and the portal.
 			g._entities_root.add_child(seg)
 			e.body.append(seg)
+		# Head last among equals, so it draws over its own neck.
+		g._entities_root.move_child(e.node, -1)
 
 
 ## Mid-round removal (flame death, pressure crush): free the parts the
@@ -161,7 +164,10 @@ func pre_walk(e: Monster, delta: float) -> bool:
 	match e.type:
 		"snail":
 			# Fresh goo on every cell the snail slides across.
-			g.goo[Vector2i(e.pos.round())] = g._clock + 6.0  # game seconds (v11.7)
+			var gc := Vector2i(e.pos.round())
+			if not g.goo.has(gc):
+				g._goo_canvas.queue_redraw()   # goo has its own layer (v12.6)
+			g.goo[gc] = g._clock + 6.0  # game seconds (v11.7)
 		"frog":
 			return _frog(e, delta)
 		"mole":
@@ -451,7 +457,8 @@ func _bull(e: Monster, delta: float) -> bool:
 						e.mode = "stun"
 						e.special_t = 1.5
 						e.pos = center
-						g._shake = minf(g._shake + 3.0, 14.0)
+						if Settings.screen_shake:   # comfort setting honoured (v12.6)
+							g._shake = minf(g._shake + 3.0, 14.0)
 						Sfx.play("brick", 0.15)
 						return false
 					target = center + Vector2(e.dir)

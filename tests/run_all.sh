@@ -88,7 +88,9 @@ check 90  fill_bots_probe      res://tests/fill_bots_probe.tscn
 check 120 menagerie_probe      res://tests/menagerie_probe.tscn
 check 120 series_probe         res://tests/series_probe.tscn
 check 60  feel_probe           res://tests/feel_probe.tscn
+check 60  smooth_probe         res://tests/smooth_probe.tscn
 check 60  arena_probe          res://tests/arena_probe.tscn
 check 60  controls_probe       res://tests/controls_probe.tscn
+check 90  pad_probe            res://tests/pad_probe.tscn
 check 90  party_probe          res://tests/party_probe.tscn
 exit $fail

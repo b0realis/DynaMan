@@ -60,6 +60,9 @@ CONTROLS='CONTROLS
             (rebind under OPTIONS > CONTROLS)
   Gamepads  pad N is player N: d-pad / left stick to move, A to bomb,
             START pause / resume, BACK quit to menu, Y rematch.
+            Remap under OPTIONS > CONTROLS > GAMEPADS: claim a player
+            for a pad, bomb on any button or LT / RT, the system
+            buttons, and the stick dead zone.
   Also      Esc pause, R rematch, Q quit to menu, F11 full screen,
             hold H for the quick help.
   Settings  ~/.local/share/godot/app_userdata/DynaMan/'

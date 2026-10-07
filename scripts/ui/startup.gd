@@ -9,7 +9,7 @@ extends Node
 ## HELP (controls per player).
 
 ## Project convention: bump by 0.1 with EVERY shipped change.
-const VERSION := "v12.4"
+const VERSION := "v12.6"
 
 const COL_TEXT := Color("e8e0cc")
 const COL_DIM := Color("8b8fa3")
@@ -63,6 +63,15 @@ var _opt_sync: Array = []
 var _rebind_btns: Array = []
 var _rebind_p := -1
 var _rebind_d := -1
+## Gamepad capture (v12.5): "" idle, else "claim:P", "bomb:P" or
+## "sys:<action>" — the next pad button (or trigger) answers it.
+var _pad_capture := ""
+var _pad_capture_t := 0.0
+var _pad_btns: Dictionary = {}       # capture key -> its Button
+var _pad_status: Array = []          # per player: "pad 1 · <name>" label
+var _deadzone_slider: HSlider
+var _deadzone_val: Label
+var _pad_msg: Label                  # the GAMEPADS section's own status line
 var _skin_row_refresh := Callable()
 var _color_cb := Callable()   # generic colour-popup routing (maker swatches)
 var _color_pop: PopupPanel
@@ -141,6 +150,10 @@ func _notification(what: int) -> void:
 
 func _process(delta: float) -> void:
 	_bd_time += delta
+	if _pad_capture != "":
+		_pad_capture_t -= delta
+		if _pad_capture_t <= 0.0:
+			_end_pad_capture("no button pressed — kept the old one")
 	if _backdrop != null:
 		_spark_ctl.queue_redraw()  # only the spark animates; the
 		# blueprint sheet redraws on resize alone (Controls re-emit
@@ -149,7 +162,7 @@ func _process(delta: float) -> void:
 	if _splash_done and Settings.attract_idle > 0 \
 			and _idle_t >= float(Settings.attract_idle) \
 			and _menu_focused \
-			and not _any_panel_open() and _rebind_p < 0 \
+			and not _any_panel_open() and _rebind_p < 0 and _pad_capture == "" \
 			and (_color_pop == null or not _color_pop.visible):
 		_idle_t = 0.0
 		Settings.attract_demo = true
@@ -180,6 +193,8 @@ func _input(event: InputEvent) -> void:
 	# The cabinet's two secret doors (v11.0): listen only on the bare
 	# menu of the RETAIL battle game — never in panels, mid-rebind, or
 	# in the story products.
+	if _pad_capture != "" and _pad_capture_input(event):
+		return
 	if not _splash_done or _any_panel_open() or _rebind_p >= 0 \
 			or Settings.is_blastalar_build() or OS.has_feature("story_tool"):
 		return
@@ -657,6 +672,14 @@ func _build_menu() -> void:
 		for c: Callable in _opt_sync:
 			c.call())
 	_build_footer()
+	Input.joy_connection_changed.connect(_on_joy_connection_changed)
+	# F11 / Alt+Enter with a tall panel open: re-fit its scroll height so
+	# the pinned BACK can't fall off the bottom (v12.6).
+	get_viewport().size_changed.connect(func() -> void:
+		for p in [_setup_panel, _options_panel, _help_panel, _maker_panel,
+				_controls_panel, _cheat_panel]:
+			if p != null and (p as PanelContainer).visible:
+				_cap_scroll.call_deferred(p))
 
 
 func _build_menu_buttons() -> void:
@@ -706,6 +729,9 @@ func _slider_row(vb: VBoxContainer, text: String, minv: float, maxv: float,
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	row.add_child(lbl)
 	var slider := HSlider.new()
+	# The mouse wheel scrolls the PANEL — it used to edit whichever slider
+	# sat under the pointer (Players to "demo", arena size…) (v12.6).
+	slider.scrollable = false
 	slider.min_value = minv
 	slider.max_value = maxv
 	slider.step = step
@@ -979,6 +1005,7 @@ func _build_options_panel() -> PanelContainer:
 			Sfx.play("ui"))
 		a_row.add_child(a_cb)
 		var a_sl := HSlider.new()
+		a_sl.scrollable = false
 		a_sl.min_value = 0.0
 		a_sl.max_value = 1.0
 		a_sl.step = 0.05
@@ -1223,24 +1250,28 @@ func _build_help_panel() -> PanelContainer:
 		var a := _make_label("Player %d" % (p + 1), 16, COL_GOLD, false, 1)
 		a.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		grid.add_child(a)
-		var k := _make_label(Settings.player_key_text(p) + "   (or gamepad %d)" % (p + 1),
+		var k := _make_label(Settings.player_key_text(p) + "   (or %s)" % Settings.pad_text(p),
 			16, COL_TEXT, false, 0)
 		k.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		grid.add_child(k)
 		var pp := p
 		_opt_sync.append(func() -> void:
 			k.text = Settings.player_key_text(pp) \
-				+ "   (or gamepad %d)" % (pp + 1))
-	for r: Array in [["Pause", "Esc  ·  pad START"],
-			["Rematch", "R  ·  pad Y   (paused / battle over)"],
-			["Next round now", "R  ·  pad Y   (round over)"],
-			["Quit to menu", "Q  ·  pad BACK   (paused / battle over)"]]:
+				+ "   (or %s)" % Settings.pad_text(pp))
+	# [label, key, pad system action, note] — the pad half follows remaps.
+	for r: Array in [["Pause", "Esc", "pause", ""],
+			["Rematch", "R", "restart", "   (paused / battle over)"],
+			["Next round now", "R", "restart", "   (round over)"],
+			["Quit to menu", "Q", "quit_to_menu", "   (paused / battle over)"]]:
 		var a := _make_label(r[0], 16, COL_GOLD, false, 1)
 		a.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		grid.add_child(a)
-		var k := _make_label(r[1], 16, COL_TEXT, false, 0)
+		var row_text := func() -> String:
+			return "%s  ·  pad %s%s" % [r[1], Settings.pad_system_name(r[2]), r[3]]
+		var k := _make_label(row_text.call(), 16, COL_TEXT, false, 0)
 		k.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		grid.add_child(k)
+		_opt_sync.append(func() -> void: k.text = row_text.call())
 	vb.add_child(_spacer(8))
 	vb.add_child(_make_label("after Dynablaster (Hudson Soft, 1991) — battle mode only, rebuilt from scratch",
 		12, COL_DIM, false, 1))
@@ -1310,8 +1341,13 @@ func _close_panel(panel: PanelContainer) -> void:
 		_refresh_rebind_btns()
 	if _color_pop != null and _color_pop.visible:
 		_color_pop.hide()
+	if _pad_capture != "":
+		_pad_capture = ""          # an armed pad capture dies with its panel
+		_refresh_pad_ui()
 	if _controls_status != null:
 		_controls_status.text = ""  # no stale "press the new key…"
+	if _pad_msg != null:
+		_pad_msg.text = ""
 	panel.visible = false
 	_menu_column.visible = true
 	if _pill_btn != null:
@@ -1701,9 +1737,7 @@ func _build_controls_panel() -> PanelContainer:
 	var vb := _scroll_body(panel)
 	vb.add_theme_constant_override("separation", 8)
 	vb.add_child(_make_label("CONTROLS", 24, COL_GOLD, true, 5))
-	vb.add_child(_make_label(
-		"click a key, then press its replacement — keyboard only;\n"
-		+ "gamepad N always drives player N (d-pad/stick + A)",
+	vb.add_child(_make_label("KEYBOARD — click a key, then press its replacement",
 		12, COL_DIM, true, 0))
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 8)
@@ -1737,6 +1771,10 @@ func _build_controls_panel() -> PanelContainer:
 			var dd := d
 			kb.pressed.connect(func() -> void:
 				Sfx.play("ui")
+				_pad_capture = ""   # one capture at a time
+				if _pad_msg != null:
+					_pad_msg.text = ""
+				_refresh_pad_ui()
 				_rebind_p = pp
 				_rebind_d = dd
 				# Focus would EAT space/enter/arrows before the capture
@@ -1763,6 +1801,7 @@ func _build_controls_panel() -> PanelContainer:
 		_refresh_rebind_btns()
 		_controls_status.text = "the factory clusters are back")
 	vb.add_child(rst)
+	_build_pad_controls(vb)
 	var back := Button.new()
 	back.text = "BACK"
 	back.add_theme_font_size_override("font_size", 16)
@@ -1772,6 +1811,221 @@ func _build_controls_panel() -> PanelContainer:
 	(panel.get_meta("back_host") as Node).add_child(back)
 	_refresh_rebind_btns()
 	return panel
+
+
+## GAMEPADS (v12.5): claim a pad per player, remap each player's bomb
+## button and the shared system buttons, set the stick dead zone.
+func _build_pad_controls(vb: VBoxContainer) -> void:
+	vb.add_child(HSeparator.new())
+	vb.add_child(_make_label("GAMEPADS", 18, COL_GOLD, true, 4))
+	vb.add_child(_make_label("CLAIM, then press any button on the pad that should drive "
+		+ "that player  ·  BOMB, then the new button (LT / RT work too)",
+		12, COL_DIM, true, 0))
+	# Its own message line, right under the hint — at 720p anything lower
+	# sat below the scroll cap and prompts/refusals went unseen (v12.6).
+	_pad_msg = _make_label("", 13, COL_GOLD, true, 0)
+	vb.add_child(_pad_msg)
+	_pad_btns = {}
+	_pad_status = []
+	for p in 4:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		vb.add_child(row)
+		var pl := _make_label("P%d" % (p + 1), 16, Settings.player_color(p), false, 1)
+		pl.custom_minimum_size = Vector2(52, 0)
+		row.add_child(pl)
+		var pcol := p
+		_opt_sync.append(func() -> void:
+			pl.add_theme_color_override("font_color", Settings.player_color(pcol)))
+		var st := _make_label("", 13, COL_TEXT, false, 0)
+		st.custom_minimum_size = Vector2(250, 0)
+		st.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		st.clip_text = true
+		row.add_child(st)
+		_pad_status.append(st)
+		var pp := p
+		var claim := _pad_button("claim:%d" % p, 110)
+		claim.pressed.connect(func() -> void:
+			_arm_pad_capture("claim:%d" % pp,
+				"press any button on the pad that should drive P%d" % (pp + 1)))
+		row.add_child(claim)
+		var bomb := _pad_button("bomb:%d" % p, 130)
+		bomb.pressed.connect(func() -> void:
+			_arm_pad_capture("bomb:%d" % pp, "press P%d's new bomb button" % (pp + 1)))
+		row.add_child(bomb)
+	var sys_row := HBoxContainer.new()
+	sys_row.add_theme_constant_override("separation", 8)
+	vb.add_child(sys_row)
+	var any_lbl := _make_label("any pad", 13, COL_DIM, false, 0)
+	any_lbl.custom_minimum_size = Vector2(52, 0)
+	sys_row.add_child(any_lbl)
+	for action: String in ["pause", "quit_to_menu", "restart"]:
+		var sb := _pad_button("sys:" + action, 170)
+		var act := action
+		sb.pressed.connect(func() -> void:
+			_arm_pad_capture("sys:" + act, "press the new %s button (every pad)"
+				% Settings.PAD_SYSTEM_NAMES[act].to_lower()))
+		sys_row.add_child(sb)
+	var dz_row := HBoxContainer.new()
+	dz_row.add_theme_constant_override("separation", 10)
+	vb.add_child(dz_row)
+	var dz_lbl := _make_label("Stick dead zone", 14, COL_TEXT, false, 0)
+	dz_lbl.custom_minimum_size = Vector2(170, 0)
+	dz_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	dz_row.add_child(dz_lbl)
+	_deadzone_slider = HSlider.new()
+	_deadzone_slider.scrollable = false   # the wheel scrolls the panel
+	_deadzone_slider.min_value = Settings.STICK_DEADZONE_RANGE.x
+	_deadzone_slider.max_value = Settings.STICK_DEADZONE_RANGE.y
+	_deadzone_slider.step = 0.05
+	_deadzone_slider.custom_minimum_size = Vector2(220, 24)
+	_deadzone_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_deadzone_slider.focus_mode = Control.FOCUS_ALL
+	_deadzone_slider.value_changed.connect(func(v: float) -> void:
+		Settings.stick_deadzone = v
+		_deadzone_val.text = "%.2f" % Settings.stick_deadzone)
+	dz_row.add_child(_deadzone_slider)
+	_deadzone_val = _make_label("", 14, COL_GOLD, true, 0)
+	dz_row.add_child(_deadzone_val)
+	var rst := Button.new()
+	rst.text = "RESET PADS"
+	rst.add_theme_font_size_override("font_size", 14)
+	rst.custom_minimum_size = Vector2(0, 32)
+	_make_focusable(rst)
+	rst.pressed.connect(func() -> void:
+		Sfx.play("brick")
+		_pad_capture = ""
+		Settings.reset_pads()
+		_refresh_pad_ui()
+		_pad_msg.text = "pads back to factory: pad N is player N, A bombs")
+	vb.add_child(rst)
+	_opt_sync.append(_refresh_pad_ui)
+	_refresh_pad_ui()
+
+
+func _pad_button(key: String, width: float) -> Button:
+	var b := Button.new()
+	b.add_theme_font_size_override("font_size", 13)
+	b.custom_minimum_size = Vector2(width, 34)
+	_make_focusable(b)
+	_pad_btns[key] = b
+	return b
+
+
+func _arm_pad_capture(key: String, prompt: String) -> void:
+	Sfx.play("ui")
+	_rebind_p = -1   # one capture at a time
+	_rebind_d = -1
+	_refresh_rebind_btns()
+	if _controls_status != null:
+		_controls_status.text = ""
+	_pad_capture = key
+	_pad_capture_t = 6.0
+	_pad_msg.text = prompt + "   (6 s · ESC keeps the old one)"
+	_refresh_pad_ui()
+
+
+## An armed pad capture eats EVERY pad event (A must not click through to
+## another button) and takes the first button press or trigger pull.
+## Keyboard and mouse keep working; ESC backs out.
+func _pad_capture_input(event: InputEvent) -> bool:
+	if event is InputEventKey and event.is_pressed() and not event.is_echo() \
+			and (event as InputEventKey).physical_keycode == KEY_ESCAPE:
+		_end_pad_capture("kept the old one")
+		get_viewport().set_input_as_handled()
+		return true
+	if not (event is InputEventJoypadButton or event is InputEventJoypadMotion):
+		return false
+	get_viewport().set_input_as_handled()
+	# An armed CLAIM is cancelled by B (ui_cancel): on a Deck there is no
+	# ESC, and pressing B to back out used to claim the player with your
+	# own pad — stranding the player who had it (v12.6). Any OTHER button
+	# still names the pad. (BOMB / system slots take B as a binding.)
+	if _pad_capture.begins_with("claim:") and event.is_action_pressed("ui_cancel"):
+		_end_pad_capture("kept the old pad")
+		return true
+	var code := -1
+	if event is InputEventJoypadButton and event.is_pressed():
+		code = (event as InputEventJoypadButton).button_index
+	elif event is InputEventJoypadMotion:
+		var m := event as InputEventJoypadMotion
+		if (m.axis == JOY_AXIS_TRIGGER_LEFT or m.axis == JOY_AXIS_TRIGGER_RIGHT) \
+				and m.axis_value > 0.6:
+			code = Settings.PAD_TRIGGER + m.axis
+	if code < 0:
+		return true
+	var kind := _pad_capture.get_slice(":", 0)
+	var arg := _pad_capture.get_slice(":", 1)
+	var msg := ""
+	match kind:
+		"claim":
+			Settings.claim_pad(int(arg), event.device)
+			msg = "pad %d now drives P%d" % [event.device + 1, int(arg) + 1]
+			Input.start_joy_vibration(event.device, 0.4, 0.2, 0.25)  # that one!
+		"bomb":
+			var err := Settings.set_pad_bomb(int(arg), code)
+			msg = err if not err.is_empty() else "P%d bombs with %s" \
+				% [int(arg) + 1, Settings.pad_code_name(code)]
+		"sys":
+			var err2 := Settings.set_pad_system(arg, code)
+			msg = err2 if not err2.is_empty() else "%s is now %s on every pad" \
+				% [Settings.PAD_SYSTEM_NAMES[arg], Settings.pad_code_name(code)]
+	_end_pad_capture(msg)
+	return true
+
+
+func _end_pad_capture(msg: String) -> void:
+	var key := _pad_capture
+	_pad_capture = ""
+	if _pad_msg != null:
+		_pad_msg.text = msg
+	_refresh_pad_ui()
+	var b: Button = _pad_btns.get(key)
+	if b != null and is_instance_valid(b) and b.is_visible_in_tree():
+		b.grab_focus()
+
+
+func _on_joy_connection_changed(_device: int, _connected: bool) -> void:
+	_refresh_pad_ui()
+
+
+func _refresh_pad_ui() -> void:
+	var connected := Input.get_connected_joypads()
+	for p in _pad_status.size():
+		var lbl: Label = _pad_status[p]
+		if not is_instance_valid(lbl):
+			continue
+		var dev := Settings.pad_device(p)
+		var live := Settings.pad_live(p)
+		if connected.has(dev):
+			lbl.text = "pad %d · %s" % [dev + 1, Input.get_joy_name(dev)]
+			lbl.add_theme_color_override("font_color", COL_TEXT)
+		elif connected.has(live):
+			# The claimed pad is away: the seat plays on a stand-in (v12.6).
+			lbl.text = "pad %d away · using pad %d" % [dev + 1, live + 1]
+			lbl.add_theme_color_override("font_color", COL_GOLD)
+		else:
+			lbl.text = "pad %d · not connected" % (dev + 1)
+			lbl.add_theme_color_override("font_color", COL_DIM)
+	for key: String in _pad_btns:
+		var b: Button = _pad_btns[key]
+		if not is_instance_valid(b):
+			continue
+		if key == _pad_capture:
+			b.text = "press…"
+			continue
+		var arg := key.get_slice(":", 1)
+		match key.get_slice(":", 0):
+			"claim":
+				b.text = "CLAIM"
+			"bomb":
+				b.text = "BOMB: %s" % Settings.pad_code_name(Settings.pad_bomb(int(arg)))
+			"sys":
+				b.text = "%s: %s" % [Settings.PAD_SYSTEM_NAMES[arg].to_upper(),
+					Settings.pad_system_name(arg)]
+	if _deadzone_slider != null and is_instance_valid(_deadzone_slider):
+		_deadzone_slider.set_value_no_signal(Settings.stick_deadzone)
+		_deadzone_val.text = "%.2f" % Settings.stick_deadzone
 
 
 func _refresh_rebind_btns() -> void:
@@ -2024,6 +2278,8 @@ func _maker_save(as_copy := false) -> void:
 	Sfx.play("win")
 	_maker_status.text = ("saved a COPY — '%s' joins the wheel" if as_copy
 		else "saved — '%s' is on the Arena tiles wheel") % TileArt.label(id)
+	if TileArt.last_write_error != OK:
+		_maker_status.text = "NOT saved to disk — is the user folder writable? (it stays this session)"
 
 
 func _maker_png_dialog(el: String) -> void:

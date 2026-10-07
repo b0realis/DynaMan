@@ -292,7 +292,9 @@ func drive_bot(p: Bomber, delta: float) -> void:
 	p.bot_t -= delta
 	if p.bot_t > 0.0:
 		return
-	p.bot_t = BOT_REPLAN_S * g.bot_replan_mult()   # skill throttle (v10.2)
+	# += keeps each bot's stagger (seeded in _start_round), = re-synced
+	# them all onto the same frame (v12.6). Skill throttle (v10.2).
+	p.bot_t = maxf(p.bot_t + BOT_REPLAN_S * g.bot_replan_mult(), 0.0)
 	var cur := Vector2i(p.pos.round())
 	var pass_cb := func(q: Vector2i) -> bool: return g._passable(q, p.i)
 	var danger: Dictionary = g._danger_cells()
@@ -412,6 +414,8 @@ func _blast_hits_teammate(p: Bomber, c: Vector2i) -> bool:
 func _bot_escape_max(p: Bomber) -> int:
 	var slow: bool = p.curse == g.Curse.SLOW or p.curse == g.Curse.REV_SLOW
 	var spd: float = 1.6 if slow else p.speed
+	if g.goo.has(Vector2i(p.pos.round())):
+		spd *= 0.55   # wading through snail goo (v12.6) — same factor as _move_player
 	return clampi(int(spd * 2.0), 2, BOT_ESCAPE_MAX)
 
 

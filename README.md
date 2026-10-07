@@ -1,6 +1,6 @@
 # DynaMan
 
-*a Prescription Games production* · v12.4
+*a Prescription Games production* · v12.6
 <!-- version convention: bump by 0.1 with every shipped change (keep in
      sync with VERSION in scripts/ui/startup.gd) -->
 
@@ -99,7 +99,8 @@ and tint**, so you can check who throws what mid-melee.
 | P3 | I J K L | O |
 | P4 | numpad 8 4 5 6 | numpad 0 |
 
-Each player also accepts gamepad N: d-pad / left stick + A.
+Each player also accepts a gamepad (by default pad N drives player N:
+d-pad / left stick + A).
 Note for 4-on-one-keyboard: cheap keyboards ghost when many keys are held
 at once — if inputs vanish in pile-ups, spread players onto gamepads.
 `Esc` pause · `R` rematch (paused / match over) — during a round's
@@ -108,6 +109,21 @@ to menu (paused / match over) · in the zero-human DEMO and the maker's
 TRY IT, `Q` leaves anytime. On a gamepad: **START** pauses / resumes
 (and leaves the trophy screen), **BACK** quits to the menu, **Y** is `R`
 — a pad-only couch never needs the keyboard (v11.8).
+
+**Gamepads, remapped in game (v12.5)** — OPTIONS → CONTROLS → GAMEPADS:
+**CLAIM** a player, then press any button on the pad that should drive
+it (the pad rumbles; whoever had it takes the old one — handy when a
+Steam Deck plus an extra controller should be P2 and P1); remap each
+player's **BOMB** to any button or to a trigger (LT / RT); remap the
+shared **PAUSE / QUIT / REMATCH** buttons for every pad; set the **stick
+dead zone** against drifting sticks; **RESET PADS**. Each pad shows
+whether it's connected and its name. The d-pad stays movement, and a
+bomb can't sit on a system button (or vice versa) — refusals say why.
+An armed slot waits 6 s; ESC keeps the old binding (and B backs out of
+a CLAIM). Triggers bomb only. All of it is saved. If a claimed pad isn't
+there, its player plays on a free pad in seat order (a Steam Deck's own
+controls always reach Player 1), and a pad dropping out mid-round
+pauses the game (v12.6).
 
 **v10.0 — the couch pass**: keys are **rebindable** (OPTIONS →
 CONTROLS: click a key, press its replacement; system keys and twins

@@ -35,6 +35,7 @@ var flame := 2
 var intent := ""      ## committed coin flip: "summon" / "mine" / ""
 var goal := NO_GOAL   ## committed mining/summon bomb site
 var desper_t := -1.0  ## when the walled-in clock started; <0 = not desperate
+var think_t := 0.0    ## an idle boss's next planning pass (v12.6 throttle)
 
 # -- menagerie extensions (v6.8) ----------------------------------------
 var hp := 1           ## hits to kill (dragon: 3, others 1)
